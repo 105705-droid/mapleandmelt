@@ -588,111 +588,99 @@
 
 <script>
 /* ════════════════════════════════════════════════════
-   MAPLE & MELT — AIRTABLE EDITION
-   All data (store status, orders, customers, comments)
-   is saved permanently to Airtable.
-   Works from any device, survives closing your laptop.
+   MAPLE & MELT — JSONBin Edition
+   Everything saves to JSONBin.io automatically.
+   Works across all devices. No tables needed.
 ════════════════════════════════════════════════════ */
 
-/* ── YOUR AIRTABLE CONFIG ──────────────────────────
-   1. Go to airtable.com → sign in → create base "Maple & Melt"
-   2. Create these 4 tables with fields listed below:
-      • store_status : is_open (Checkbox)
-      • orders       : data (Long text), customer_name (Single line text), customer_email (Single line text), total (Number)
-      • customers    : email (Single line text), name (Single line text), picture (URL), registered_at (Single line text), last_seen (Single line text)
-      • comments     : data (Long text), created_time (Single line text)
-   3. Get your token: airtable.com/create/tokens → Create token
-      Scopes: data.records:read + data.records:write + schema.bases:read
-      Access: your Maple & Melt base
-   4. Get Base ID: airtable.com/api → click your base → copy appXXXXXXXX from the URL
-   5. Paste both below
-─────────────────────────────────────────────────── */
-const AT_TOKEN   = 'patE8SotynvUENM3h.de2cf9aa4f6b8abdee824210c4c2a1b8a2fbb0d53620fe39ae755eb99872ce1c';
-const AT_BASE_ID = 'appJauusbHlxTKZwM';
-const AT_READY   = !AT_TOKEN.startsWith('YOUR_');
-
-/* Refresh admin dashboard instantly if it is currently open */
-function refreshAdminIfOpen() {
-  if (adminAuthed && document.getElementById('adminOverlay').classList.contains('show')) {
-    renderAdminPanel();
-  }
-}
-
-
+/* ── YOUR CONFIG ────────────────────────────────── */
+const JB_KEY      = '$2a$10$PJq.dKAkFB.jiB79OcoYvObA8eFtiasGGjOmZFOpDVmHtElPTld.y';
 const ADMIN_PASSWORD   = 'viper2016!';
 const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
 
 /* ════════════════════════════════════════════════════
-   AIRTABLE API HELPERS
+   JSONBIN HELPERS
+   All data lives in ONE bin as a single JSON object:
+   { storeOpen, orders[], customers[], comments[] }
 ════════════════════════════════════════════════════ */
-const AT_BASE = `https://api.airtable.com/v0/${AT_BASE_ID}`;
-const AT_HEADERS = () => ({
-  'Authorization': `Bearer ${AT_TOKEN}`,
-  'Content-Type': 'application/json'
-});
+const JB_BASE = 'https://api.jsonbin.io/v3/b';
+const JB_HEADERS = {
+  'Content-Type': 'application/json',
+  'X-Master-Key': JB_KEY
+};
 
-async function atGet(table, params = '') {
-  if (!AT_READY) return null;
-  try {
-    const r = await fetch(`${AT_BASE}/${encodeURIComponent(table)}${params}`, { headers: AT_HEADERS() });
-    if (!r.ok) { return null; }
-    return await r.json();
-  } catch(e) {
-    // Silent fail — likely file:// protocol or network block
-    // Show warning in admin dashboard only once
-    if (!window._atWarnShown) {
-      window._atWarnShown = true;
-      const el = document.getElementById('atStatus');
-      if (el) el.innerHTML = '<span style="color:#FF6B9D;font-size:.8rem;">⚠️ Cannot reach Airtable — are you viewing this from a live website (not a local file)?</span>';
-    }
-    return null;
-  }
+let   JB_BIN_ID = null;  // set after first load
+const JB_ID_KEY = 'mm_jb_bin_id';  // localStorage key to remember bin ID
+
+/* Default empty data structure */
+function emptyData() {
+  return { storeOpen: false, orders: [], customers: [], comments: [] };
 }
 
-async function atCreate(table, fields) {
-  if (!AT_READY) return null;
+/* Read the bin — returns full data object */
+async function jbRead() {
+  const id = JB_BIN_ID || localStorage.getItem(JB_ID_KEY);
+  if (!id) return null;
   try {
-    const r = await fetch(`${AT_BASE}/${encodeURIComponent(table)}`, {
-      method: 'POST',
-      headers: AT_HEADERS(),
-      body: JSON.stringify({ fields })
-    });
-    if (!r.ok) { return null; }
-    return await r.json();
-  } catch(e) { return null; }
-}
-
-async function atUpdate(table, recordId, fields) {
-  if (!AT_READY) return null;
-  try {
-    const r = await fetch(`${AT_BASE}/${encodeURIComponent(table)}/${recordId}`, {
-      method: 'PATCH',
-      headers: AT_HEADERS(),
-      body: JSON.stringify({ fields })
-    });
+    const r = await fetch(`${JB_BASE}/${id}/latest`, { headers: JB_HEADERS });
     if (!r.ok) return null;
-    return await r.json();
+    const j = await r.json();
+    return j.record || null;
   } catch(e) { return null; }
 }
 
-async function atDelete(table, recordId) {
-  if (!AT_READY) return null;
+/* Write the full data object to the bin */
+async function jbWrite(data) {
+  const id = JB_BIN_ID || localStorage.getItem(JB_ID_KEY);
+  if (!id) return false;
   try {
-    const r = await fetch(`${AT_BASE}/${encodeURIComponent(table)}/${recordId}`, {
-      method: 'DELETE',
-      headers: AT_HEADERS()
+    const r = await fetch(`${JB_BASE}/${id}`, {
+      method:  'PUT',
+      headers: JB_HEADERS,
+      body:    JSON.stringify(data)
     });
     return r.ok;
+  } catch(e) { return false; }
+}
+
+/* Create a new bin on first run */
+async function jbCreate() {
+  try {
+    const r = await fetch(JB_BASE, {
+      method:  'POST',
+      headers: { ...JB_HEADERS, 'X-Bin-Name': 'maple-and-melt', 'X-Bin-Private': 'false' },
+      body:    JSON.stringify(emptyData())
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j.metadata ? j.metadata.id : null;
   } catch(e) { return null; }
 }
 
-async function atDeleteAll(table) {
-  if (!AT_READY) return;
-  const res = await atGet(table, '?pageSize=100');
-  if (!res || !res.records) return;
-  for (const rec of res.records) {
-    await atDelete(table, rec.id);
+/* Load or create the bin on startup */
+async function jbInit() {
+  let id = localStorage.getItem(JB_ID_KEY);
+  if (!id) {
+    // No bin yet — create one
+    showLoadingBanner('Setting up your store...');
+    id = await jbCreate();
+    if (id) {
+      localStorage.setItem(JB_ID_KEY, id);
+      JB_BIN_ID = id;
+    } else {
+      showLoadingBanner('');
+      return false;
+    }
   }
+  JB_BIN_ID = id;
+  return true;
+}
+
+function showLoadingBanner(msg) {
+  const el = document.getElementById('closedBanner');
+  if (!el) return;
+  if (msg) { el.textContent = '⏳ ' + msg; el.classList.add('show'); }
+  else { syncClosedBanner(); }
 }
 
 /* ════════════════════════════════════════════════════
@@ -705,11 +693,11 @@ let adminAuthed  = false;
 let storeOpen    = false;
 let atOrders     = [];
 let atCustomers  = [];
-let storeRecordId = null;  // Airtable record ID for the store_status row
-let pollInterval  = null;  // polling interval reference
+let pageComments = [];
+let pollInterval = null;
 
 /* ════════════════════════════════════════════════════
-   SECURITY — h() escapes all user-supplied strings
+   SECURITY — escape all user data before rendering
 ════════════════════════════════════════════════════ */
 function h(s) {
   return String(s == null ? '' : s)
@@ -719,83 +707,50 @@ function h(s) {
 }
 
 /* ════════════════════════════════════════════════════
-   AIRTABLE SYNC — load + poll every 8 seconds
+   LOAD & SYNC
 ════════════════════════════════════════════════════ */
-async function loadFromAirtable() {
-  if (!AT_READY) {
-    // localStorage fallback when not configured
-    try { storeOpen = localStorage.getItem('mm_store_open') === 'true'; } catch(e) {}
-    syncClosedBanner();
-    loadCommentsLocal();
-    return;
+async function loadData() {
+  const data = await jbRead();
+  if (!data) return;
+
+  const wasOpen = storeOpen;
+  storeOpen    = data.storeOpen === true;
+  atOrders     = Array.isArray(data.orders)    ? data.orders    : [];
+  atCustomers  = Array.isArray(data.customers) ? data.customers : [];
+  pageComments = Array.isArray(data.comments)  ? data.comments  : [];
+
+  syncClosedBanner();
+  renderComments(pageComments);
+
+  if (storeOpen && !wasOpen && !currentUser) showSignIn(true);
+  if (!storeOpen && wasOpen) {
+    const ov = document.getElementById('gateOverlay');
+    if (ov && ov.classList.contains('show')) showSignIn(false);
   }
 
-  // Load store status
-  const storeData = await atGet('store_status', '?maxRecords=1');
-  if (storeData && storeData.records && storeData.records.length > 0) {
-    const rec = storeData.records[0];
-    storeRecordId = rec.id;
-    const wasOpen = storeOpen;
-    storeOpen = rec.fields.is_open === true;
-    syncClosedBanner();
-    if (storeOpen && !wasOpen && !currentUser) showSignIn(true);
-    if (!storeOpen && wasOpen) {
-      const overlay = document.getElementById('gateOverlay');
-      if (overlay.classList.contains('show')) showSignIn(false);
-    }
-  } else {
-    // No store_status row yet — create one
-    const created = await atCreate('store_status', { is_open: false });
-    if (created) storeRecordId = created.id;
-    storeOpen = false;
-    syncClosedBanner();
-  }
-
-  // Load orders
-  const ordersData = await atGet('orders', '?sort%5B0%5D%5Bfield%5D=created_time&sort%5B0%5D%5Bdirection%5D=desc&maxRecords=100');
-  if (ordersData && ordersData.records) {
-    atOrders = ordersData.records.map(r => {
-      try { return { _id: r.id, ...JSON.parse(r.fields.data || '{}') }; }
-      catch(e) { return null; }
-    }).filter(Boolean);
-  }
-
-  // Load customers
-  const custData = await atGet('customers', '?sort%5B0%5D%5Bfield%5D=last_seen&sort%5B0%5D%5Bdirection%5D=desc&maxRecords=100');
-  if (custData && custData.records) {
-    atCustomers = custData.records.map(r => ({
-      _id:          r.id,
-      email:        r.fields.email        || '',
-      name:         r.fields.name         || '',
-      picture:      r.fields.picture      || '',
-      registeredAt: r.fields.registered_at || '',
-      lastSeen:     r.fields.last_seen     || ''
-    }));
-  }
-
-  // Load comments
-  const commData = await atGet('comments', '?sort%5B0%5D%5Bfield%5D=created_time&sort%5B0%5D%5Bdirection%5D=desc&maxRecords=100');
-  if (commData && commData.records) {
-    const comments = commData.records.map(r => {
-      try { return JSON.parse(r.fields.data || '{}'); }
-      catch(e) { return null; }
-    }).filter(c => c && c.name);
-    pageComments = comments;
-    renderComments(pageComments.length ? pageComments : []);
-  } else {
-    renderComments([]);
-  }
-
-  // Refresh admin if open
-  if (adminAuthed && document.getElementById('adminOverlay').classList.contains('show')) {
-    renderAdminPanel();
-  }
+  refreshAdminIfOpen();
 }
 
 function startPolling() {
-  loadFromAirtable();
-  // Poll every 8 seconds to keep data fresh across all devices
-  pollInterval = setInterval(loadFromAirtable, 30000);
+  loadData();
+  pollInterval = setInterval(loadData, 10000);  // refresh every 10s
+}
+
+/* ════════════════════════════════════════════════════
+   HELPERS — read/modify/write pattern
+════════════════════════════════════════════════════ */
+async function withData(fn) {
+  // Read latest, apply fn, write back
+  let data = await jbRead();
+  if (!data) data = emptyData();
+  const updated = fn(data);
+  await jbWrite(updated || data);
+}
+
+function refreshAdminIfOpen() {
+  if (adminAuthed && document.getElementById('adminOverlay').classList.contains('show')) {
+    renderAdminPanel();
+  }
 }
 
 /* ════════════════════════════════════════════════════
@@ -806,20 +761,12 @@ function storeIsOpen() { return storeOpen; }
 async function setStore(open) {
   storeOpen = open;
   syncClosedBanner();
-  if (AT_READY) {
-    if (storeRecordId) {
-      await atUpdate('store_status', storeRecordId, { is_open: open });
-    } else {
-      const created = await atCreate('store_status', { is_open: open });
-      if (created) storeRecordId = created.id;
-    }
-  } else {
-    try { localStorage.setItem('mm_store_open', open ? 'true' : 'false'); } catch(e) {}
-  }
+  await withData(d => { d.storeOpen = open; return d; });
 }
 
 function syncClosedBanner() {
   const el = document.getElementById('closedBanner');
+  if (!el) return;
   if (storeOpen) el.classList.remove('show');
   else el.classList.add('show');
 }
@@ -833,42 +780,14 @@ function checkEntryGate() {
 ════════════════════════════════════════════════════ */
 async function upsertCustomer(rec) {
   const now = new Date().toISOString();
-  if (AT_READY) {
-    // Check if customer already exists
-    const existing = await atGet('customers', `?filterByFormula=email%3D"${encodeURIComponent(rec.email)}"&maxRecords=1`);
-    if (existing && existing.records && existing.records.length > 0) {
-      const id = existing.records[0].id;
-      await atUpdate('customers', id, {
-        name:      rec.name    || '',
-        picture:   rec.picture || '',
-        last_seen: now
-      });
-    } else {
-      await atCreate('customers', {
-        email:         rec.email   || '',
-        name:          rec.name    || '',
-        picture:       rec.picture || '',
-        registered_at: now,
-        last_seen:     now
-      });
-    }
-    // Update local mirror instantly and refresh admin
-    const existingIdx = atCustomers.findIndex(c => c.email && c.email.toLowerCase() === rec.email.toLowerCase());
-    if (existingIdx >= 0) {
-      atCustomers[existingIdx] = { ...atCustomers[existingIdx], ...rec, lastSeen: now };
-    } else {
-      atCustomers = [{ ...rec, registeredAt: now, lastSeen: now }, ...atCustomers];
-    }
-    refreshAdminIfOpen();
+  const idx = atCustomers.findIndex(c => c.email && c.email.toLowerCase() === rec.email.toLowerCase());
+  if (idx >= 0) {
+    atCustomers[idx] = { ...atCustomers[idx], ...rec, lastSeen: now };
   } else {
-    try {
-      const all = JSON.parse(localStorage.getItem('mm_customers_v1') || '[]');
-      const idx = all.findIndex(c => c.email && c.email.toLowerCase() === rec.email.toLowerCase());
-      if (idx >= 0) { all[idx] = { ...all[idx], ...rec, lastSeen: now }; }
-      else { all.unshift({ ...rec, registeredAt: now, lastSeen: now }); }
-      localStorage.setItem('mm_customers_v1', JSON.stringify(all));
-    } catch(e) {}
+    atCustomers = [{ ...rec, registeredAt: now, lastSeen: now }, ...atCustomers];
   }
+  refreshAdminIfOpen();
+  await withData(d => { d.customers = atCustomers; return d; });
 }
 
 /* ════════════════════════════════════════════════════
@@ -877,33 +796,23 @@ async function upsertCustomer(rec) {
 window.onGoogleLibraryLoad = function() {
   if (!GOOGLE_CLIENT_ID.startsWith('YOUR_')) {
     google.accounts.id.initialize({
-      client_id:             GOOGLE_CLIENT_ID,
-      callback:              handleGoogleCredential,
-      auto_select:           false,
-      cancel_on_tap_outside: false
+      client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential,
+      auto_select: false, cancel_on_tap_outside: false
     });
   }
 };
 
 function handleGoogleCredential(response) {
   try {
-    const parts   = response.credential.split('.');
-    const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
-    currentUser = {
-      name:    payload.name    || 'Customer',
-      email:   payload.email   || '',
-      picture: payload.picture || ''
-    };
+    const payload = JSON.parse(atob(response.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    currentUser = { name: payload.name||'Customer', email: payload.email||'', picture: payload.picture||'' };
     upsertCustomer({ name: currentUser.name, email: currentUser.email, picture: currentUser.picture });
     afterSignIn();
-  } catch(e) {
-    console.error('Google sign-in error', e);
-    alert('Sign-in failed — please try again.');
-  }
+  } catch(e) { alert('Sign-in failed — please try again.'); }
 }
 
 /* ════════════════════════════════════════════════════
-   GATE OVERLAY HELPERS
+   GATE OVERLAY
 ════════════════════════════════════════════════════ */
 function showGateOverlay(content) {
   document.getElementById('gateContent').innerHTML = content;
@@ -914,74 +823,49 @@ function hideGateOverlay() {
   document.getElementById('gateContent').innerHTML = '';
 }
 
-/* ════════════════════════════════════════════════════
-   SIGN-IN GATE
-════════════════════════════════════════════════════ */
 function showSignIn(required) {
   if (!storeIsOpen()) {
-    showGateOverlay(`
-      <div class="closed-box" onclick="event.stopPropagation()">
-        <span class="big-emoji">🔒</span>
-        <h2>We're Not Open Yet!</h2>
-        <p>Our stall isn't accepting orders right now, but we're opening very soon!<br><br>
-           Come back shortly — something delicious is on the way 🥞✨</p>
-        <button class="closed-ok-btn" onclick="hideGateOverlay()">Got it! 👍</button>
-      </div>`);
+    showGateOverlay(`<div class="closed-box" onclick="event.stopPropagation()">
+      <span class="big-emoji">🔒</span>
+      <h2>We're Not Open Yet!</h2>
+      <p>Our stall isn't accepting orders right now, but we're opening very soon!<br><br>Come back shortly — something delicious is on the way 🥞✨</p>
+      <button class="closed-ok-btn" onclick="hideGateOverlay()">Got it! 👍</button>
+    </div>`);
     document.getElementById('gateOverlay').onclick = null;
     return;
   }
   const overlay = document.getElementById('gateOverlay');
   overlay.onclick = required ? null : hideGateOverlay;
-
   const useReal = !GOOGLE_CLIENT_ID.startsWith('YOUR_');
   const btnArea = useReal
     ? `<div class="g-btn-wrap" id="gBtnMount"></div>`
     : `<div style="width:100%;">
-        <input class="signin-field" type="text" id="custName" placeholder="Your full name 😊"
-          maxlength="40" autocomplete="name"
-          onkeydown="if(event.key==='Enter')document.getElementById('custEmail').focus()"/>
-        <input class="signin-field" type="email" id="custEmail" placeholder="Email address 📧"
-          maxlength="80" autocomplete="email"
-          onkeydown="if(event.key==='Enter')completeSignIn()"/>
+        <input class="signin-field" type="text" id="custName" placeholder="Your full name 😊" maxlength="40" autocomplete="name" onkeydown="if(event.key==='Enter')document.getElementById('custEmail').focus()"/>
+        <input class="signin-field" type="email" id="custEmail" placeholder="Email address 📧" maxlength="80" autocomplete="email" onkeydown="if(event.key==='Enter')completeSignIn()"/>
         <button class="signin-submit" onclick="completeSignIn()">Let's Order! 🥞</button>
         <div class="signin-err" id="custErr" style="display:none;"></div>
        </div>`;
-
-  showGateOverlay(`
-    <div class="signin-box" onclick="event.stopPropagation()">
-      <span class="signin-emoji">🥞</span>
-      <h2>Welcome to Maple &amp; Melt!</h2>
-      <p>${useReal ? 'Sign in with your Google account to browse the menu and place your order!' : 'Enter your name and email to get started!'}</p>
-      ${btnArea}
-    </div>`);
-
+  showGateOverlay(`<div class="signin-box" onclick="event.stopPropagation()">
+    <span class="signin-emoji">🥞</span>
+    <h2>Welcome to Maple &amp; Melt!</h2>
+    <p>${useReal ? 'Sign in with your Google account to place your order!' : 'Enter your name and email to get started!'}</p>
+    ${btnArea}
+  </div>`);
   if (useReal) {
     setTimeout(() => {
-      try {
-        google.accounts.id.renderButton(
-          document.getElementById('gBtnMount'),
-          { theme:'outline', size:'large', shape:'pill', width:280 }
-        );
-      } catch(e) {}
+      try { google.accounts.id.renderButton(document.getElementById('gBtnMount'), { theme:'outline', size:'large', shape:'pill', width:280 }); } catch(e) {}
     }, 80);
   }
 }
 
 function completeSignIn() {
-  const nameEl  = document.getElementById('custName');
+  const nameEl = document.getElementById('custName');
   const emailEl = document.getElementById('custEmail');
-  const errEl   = document.getElementById('custErr');
+  const errEl  = document.getElementById('custErr');
   if (!nameEl || !emailEl) return;
-  const name  = nameEl.value.trim();
-  const email = emailEl.value.trim();
-  if (!name) {
-    errEl.textContent = 'Please enter your name! 😊';
-    errEl.style.display = 'block'; nameEl.focus(); return;
-  }
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errEl.textContent = 'Please enter a valid email address! 📧';
-    errEl.style.display = 'block'; emailEl.focus(); return;
-  }
+  const name = nameEl.value.trim(), email = emailEl.value.trim();
+  if (!name) { errEl.textContent='Please enter your name! 😊'; errEl.style.display='block'; nameEl.focus(); return; }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent='Please enter a valid email! 📧'; errEl.style.display='block'; emailEl.focus(); return; }
   currentUser = { name, email, picture: '' };
   upsertCustomer({ name, email, picture: '' });
   afterSignIn();
@@ -989,24 +873,18 @@ function completeSignIn() {
 
 function afterSignIn() {
   hideGateOverlay();
-  const bar = document.getElementById('userBar');
-  const av  = document.getElementById('userAvatar');
-  const nm  = document.getElementById('userNameBar');
+  const nm = document.getElementById('userNameBar');
+  const av = document.getElementById('userAvatar');
+  const bar= document.getElementById('userBar');
   nm.textContent = 'Hi, ' + currentUser.name.split(' ')[0] + '! 👋';
-  if (currentUser.picture) { av.src = currentUser.picture; av.style.display = 'block'; }
-  else { av.style.display = 'none'; }
+  if (currentUser.picture) { av.src=currentUser.picture; av.style.display='block'; } else { av.style.display='none'; }
   bar.classList.add('show');
-  // Refresh admin dashboard instantly so new sign-in appears right away
   refreshAdminIfOpen();
-  if (pendingKey) {
-    const k = pendingKey; pendingKey = null; openMenuModal(k);
-  }
+  if (pendingKey) { const k=pendingKey; pendingKey=null; openMenuModal(k); }
 }
 
 function doSignOut() {
-  currentUser = null;
-  cart = [];
-  renderCart();
+  currentUser=null; cart=[]; renderCart();
   document.getElementById('userBar').classList.remove('show');
   try { google.accounts.id.disableAutoSelect(); } catch(e) {}
 }
@@ -1016,17 +894,14 @@ function doSignOut() {
 ════════════════════════════════════════════════════ */
 function handleMenuTap(key) {
   if (!storeIsOpen()) {
-    showGateOverlay(`
-      <div class="closed-box" onclick="event.stopPropagation()">
-        <span class="big-emoji">🔒</span>
-        <h2>We're Not Open Yet!</h2>
-        <p>Our stall isn't accepting orders right now, but we're opening very soon!<br><br>
-           Come back shortly — something delicious is on the way 🥞✨</p>
-        <button class="closed-ok-btn" onclick="hideGateOverlay()">Got it! 👍</button>
-      </div>`);
+    showGateOverlay(`<div class="closed-box" onclick="event.stopPropagation()">
+      <span class="big-emoji">🔒</span><h2>We're Not Open Yet!</h2>
+      <p>Our stall isn't accepting orders right now — come back soon! 🥞✨</p>
+      <button class="closed-ok-btn" onclick="hideGateOverlay()">Got it! 👍</button>
+    </div>`);
     return;
   }
-  if (!currentUser) { pendingKey = key; showSignIn(false); return; }
+  if (!currentUser) { pendingKey=key; showSignIn(false); return; }
   openMenuModal(key);
 }
 
@@ -1034,48 +909,30 @@ function handleMenuTap(key) {
    MENU DATA
 ════════════════════════════════════════════════════ */
 const MENU = {
-  pancakes: {
-    emoji:'🥞', name:'Fluffy Pancakes',
-    desc:'Golden, buttery stacks drizzled with real maple syrup',
+  pancakes: { emoji:'🥞', name:'Fluffy Pancakes', desc:'Golden, buttery stacks drizzled with real maple syrup',
     sizes:[{label:'Small (3 pcs)',price:22},{label:'Medium (5 pcs)',price:30},{label:'Large (8 pcs)',price:40}],
     toppings:['🍓 Strawberries','🍌 Banana','🫐 Blueberries','🍦 Whipped Cream','🍯 Extra Maple','🍫 Choc Drizzle'],
-    flavours:['Classic Butter','Cinnamon','Vanilla','Blueberry Burst']
-  },
-  hotchoc: {
-    emoji:'🍫', name:'Hot Chocolate',
-    desc:'Rich, velvety cocoa topped with fluffy marshmallows',
+    flavours:['Classic Butter','Cinnamon','Vanilla','Blueberry Burst'] },
+  hotchoc: { emoji:'🍫', name:'Hot Chocolate', desc:'Rich, velvety cocoa topped with fluffy marshmallows',
     sizes:[{label:'Small',price:15},{label:'Medium',price:19},{label:'Large',price:23}],
     toppings:['☁️ Marshmallows','🍦 Whipped Cream','🍫 Extra Choc','🌶️ Spicy Kick','🍬 Caramel'],
-    flavours:['Classic Dark','Milk Choc','White Choc','Hazelnut','Mint Choc','Cold Chocolate']
-  },
-  smoothie: {
-    emoji:'🥤', name:'Fresh Smoothies',
-    desc:'Blended with real fruits, packed with natural goodness',
+    flavours:['Classic Dark','Milk Choc','White Choc','Hazelnut','Mint Choc','Cold Chocolate'] },
+  smoothie: { emoji:'🥤', name:'Fresh Smoothies', desc:'Blended with real fruits, packed with natural goodness',
     sizes:[{label:'Small (300ml)',price:18},{label:'Medium (450ml)',price:23},{label:'Large (600ml)',price:28}],
     toppings:['🌿 Chia Seeds','🍯 Honey','🥥 Coconut Flakes','🌱 Protein Boost','🧊 Extra Ice','🍦 Whipped Cream'],
-    flavours:['🥭 Mango','🍓 Strawberry','🍌 Banana','🫐 Mixed Berry','🍍 Tropical','🥝 Kiwi','🍑 Peach','🥭🍓 Mango & Strawberry']
-  },
-  drinks: {
-    emoji:'🧃', name:'Special Drinks',
-    desc:'Fresh juices, lemonades and icy slushies made to order!',
+    flavours:['🥭 Mango','🍓 Strawberry','🍌 Banana','🫐 Mixed Berry','🍍 Tropical','🥝 Kiwi','🍑 Peach','🥭🍓 Mango & Strawberry'] },
+  drinks: { emoji:'🧃', name:'Special Drinks', desc:'Fresh juices, lemonades and icy slushies made to order!',
     sizes:[{label:'Small',price:13},{label:'Medium',price:17},{label:'Large',price:21}],
     toppings:['🧊 Extra Ice','🍋 Extra Lemon','🌿 Mint Leaves','🍬 Sugar Rim','🫧 Sparkling Water','🍯 Honey Drizzle'],
-    flavours:['🍊 Orange Juice','🍋 Classic Lemonade','🍋🌿 Mint Lemonade','🥭 Mango Slushie','🍓 Strawberry Slushie','🥭🍓 Mango & Strawberry Slushie','🍉 Watermelon Juice','🍹 Tropical Mix']
-  },
-  waffles: {
-    emoji:'🧇', name:'Crispy Waffles',
-    desc:'Golden, crispy waffles topped with syrup, cream & fruits',
+    flavours:['🍊 Orange Juice','🍋 Classic Lemonade','🍋🌿 Mint Lemonade','🥭 Mango Slushie','🍓 Strawberry Slushie','🥭🍓 Mango & Strawberry Slushie','🍉 Watermelon Juice','🍹 Tropical Mix'] },
+  waffles: { emoji:'🧇', name:'Crispy Waffles', desc:'Golden, crispy waffles topped with syrup, cream & fruits',
     sizes:[{label:'Single',price:25},{label:'Double',price:38},{label:'Family (4)',price:65}],
     toppings:['🍓 Strawberries','🍌 Banana','🍨 Ice Cream','🍫 Nutella','🍯 Maple Syrup','🍦 Whipped Cream'],
-    flavours:['Classic Butter','Cinnamon Sugar','Choc Chip','Red Velvet','Vanilla Bean']
-  },
-  cookies: {
-    emoji:'🍪', name:'Fresh Cookies',
-    desc:'Warm, freshly baked cookies straight from the oven!',
+    flavours:['Classic Butter','Cinnamon Sugar','Choc Chip','Red Velvet','Vanilla Bean'] },
+  cookies: { emoji:'🍪', name:'Fresh Cookies', desc:'Warm, freshly baked cookies straight from the oven!',
     sizes:[{label:'1 Cookie',price:8},{label:'3 Cookies',price:20},{label:'6 Cookies',price:35}],
     toppings:['🍦 With Ice Cream','🍫 Choc Dip','🥛 With Milk','🍬 Sprinkles'],
-    flavours:['🍫 Choc Chip','🍫 Double Choc','🥜 Peanut Butter','🍬 Kinder']
-  }
+    flavours:['🍫 Choc Chip','🍫 Double Choc','🥜 Peanut Butter','🍬 Kinder'] }
 };
 
 /* ════════════════════════════════════════════════════
@@ -1097,33 +954,22 @@ function closeMenuModal() {
   setTimeout(()=>{ mb.style.display='none'; document.getElementById('menuModalOverlay').style.display='none'; },250);
 }
 function renderMenuModal() {
-  const item=modalItem;
-  const total=item.sizes[modalSize].price+modalToppings.length*2;
+  const item=modalItem, total=item.sizes[modalSize].price+modalToppings.length*2;
   document.getElementById('menuModalBody').innerHTML=`
     <span class="modal-emoji">${item.emoji}</span>
     <div class="modal-title">${h(item.name)}</div>
     <div class="modal-desc">${h(item.desc)}</div>
-    <div class="option-group">
-      <span class="option-label">📏 Size</span>
-      <div class="option-chips">
-        ${item.sizes.map((s,i)=>`<div class="chip${i===modalSize?' active':''}" onclick="setModalSize(${i})">${h(s.label)}<br><small>AED ${s.price}</small></div>`).join('')}
-      </div>
+    <div class="option-group"><span class="option-label">📏 Size</span>
+      <div class="option-chips">${item.sizes.map((s,i)=>`<div class="chip${i===modalSize?' active':''}" onclick="setModalSize(${i})">${h(s.label)}<br><small>AED ${s.price}</small></div>`).join('')}</div>
     </div>
-    <div class="option-group">
-      <span class="option-label">🍓 Toppings <small style="color:#bbb;font-family:'Nunito',sans-serif">(+AED 2 each)</small></span>
-      <div class="option-chips">
-        ${item.toppings.map((t,i)=>`<div class="chip topping${modalToppings.includes(i)?' active':''}" onclick="toggleModalTopping(${i})">${h(t)}</div>`).join('')}
-      </div>
+    <div class="option-group"><span class="option-label">🍓 Toppings <small style="color:#bbb">(+AED 2 each)</small></span>
+      <div class="option-chips">${item.toppings.map((t,i)=>`<div class="chip topping${modalToppings.includes(i)?' active':''}" onclick="toggleModalTopping(${i})">${h(t)}</div>`).join('')}</div>
     </div>
-    <div class="option-group">
-      <span class="option-label">✨ Flavour</span>
-      <div class="option-chips">
-        ${item.flavours.map((f,i)=>`<div class="chip flavour${modalFlavour===i?' active':''}" onclick="setModalFlavour(${i})">${h(f)}</div>`).join('')}
-      </div>
+    <div class="option-group"><span class="option-label">✨ Flavour</span>
+      <div class="option-chips">${item.flavours.map((f,i)=>`<div class="chip flavour${modalFlavour===i?' active':''}" onclick="setModalFlavour(${i})">${h(f)}</div>`).join('')}</div>
     </div>
     <div class="modal-price">Total: AED ${total}</div>
-    <button class="order-btn" onclick="addToCart()">🛒 Add to Order!</button>
-  `;
+    <button class="order-btn" onclick="addToCart()">🛒 Add to Order!</button>`;
 }
 function setModalSize(i) { modalSize=i; renderMenuModal(); }
 function toggleModalTopping(i) { modalToppings=modalToppings.includes(i)?modalToppings.filter(x=>x!==i):[...modalToppings,i]; renderMenuModal(); }
@@ -1133,31 +979,16 @@ function setModalFlavour(i) { modalFlavour=(modalFlavour===i)?null:i; renderMenu
    NEW CUSTOMER DISCOUNT (10% off — first 10 days)
 ════════════════════════════════════════════════════ */
 const DISCOUNT_DAYS=10, DISCOUNT_PERCENT=10;
-
 function getCustomerRegisteredAt() {
   if (!currentUser) return null;
-  const found = atCustomers.find(c => c.email && c.email.toLowerCase()===currentUser.email.toLowerCase());
-  if (found) return found.registeredAt || found.registered_at || null;
-  // fallback: localStorage
-  try {
-    const all = JSON.parse(localStorage.getItem('mm_customers_v1')||'[]');
-    const c = all.find(x=>x.email&&x.email.toLowerCase()===currentUser.email.toLowerCase());
-    return c ? (c.registeredAt||c.registered_at||null) : null;
-  } catch(e) { return null; }
+  const c=atCustomers.find(c=>c.email&&c.email.toLowerCase()===currentUser.email.toLowerCase());
+  return c ? (c.registeredAt||null) : null;
 }
 function isNewCustomer() {
-  const reg=getCustomerRegisteredAt();
-  if (!reg) return false;
+  const reg=getCustomerRegisteredAt(); if (!reg) return false;
   return (Date.now()-new Date(reg).getTime())/(1000*60*60*24)<=DISCOUNT_DAYS;
 }
-function daysLeftOnDiscount() {
-  const reg=getCustomerRegisteredAt();
-  if (!reg) return 0;
-  return Math.max(0,Math.ceil(DISCOUNT_DAYS-(Date.now()-new Date(reg).getTime())/(1000*60*60*24)));
-}
-function applyDiscount(total) {
-  return isNewCustomer()?Math.round(total*(1-DISCOUNT_PERCENT/100)):total;
-}
+function applyDiscount(total) { return isNewCustomer()?Math.round(total*(1-DISCOUNT_PERCENT/100)):total; }
 
 /* ════════════════════════════════════════════════════
    CART
@@ -1169,8 +1000,7 @@ function addToCart() {
   const toppings=modalToppings.map(i=>item.toppings[i]);
   const menuKey=Object.keys(MENU).find(k=>MENU[k].name===item.name)||'';
   cart.push({id:Date.now(),menuKey,emoji:item.emoji,name:item.name,size:sz.label,flavour,toppings,price,qty:1});
-  renderCart();
-  closeMenuModal();
+  renderCart(); closeMenuModal();
   setTimeout(()=>{ launchConfetti(); openCart(); },300);
 }
 
@@ -1180,40 +1010,34 @@ function renderCart() {
   const footer=document.getElementById('cartFooter');
   badge.textContent=cart.reduce((s,it)=>s+(it.qty||1),0);
   if (!cart.length) {
-    itemsEl.innerHTML=`<div class="cart-empty"><span>🥞</span>Nothing here yet!<br><small style="font-family:'Nunito',sans-serif;font-size:.9rem;color:#ddd;">Tap a menu item to add to your order</small></div>`;
+    itemsEl.innerHTML='<div class="cart-empty"><span>🥞</span>Nothing here yet!<br><small style="font-family:Nunito,sans-serif;font-size:.9rem;color:#ddd;">Tap a menu item to add to your order</small></div>';
     footer.style.display='none'; return;
   }
   footer.style.display='block';
   let grand=0;
   itemsEl.innerHTML=cart.map(it=>{
-    const qty=it.qty||1;
-    grand+=it.price*qty;
+    const qty=it.qty||1; grand+=it.price*qty;
     const fTag=it.flavour?`<span class="opt-tag flavour-tag">✨ ${h(it.flavour)}</span>`:'';
     const tTags=it.toppings.length?it.toppings.map(t=>`<span class="opt-tag topping-tag">${h(t)}</span>`).join(''):'<span class="opt-tag" style="background:#f5f5f5;color:#bbb;">No toppings</span>';
-    return `
-      <div class="cart-item">
-        <span class="cart-item-emoji">${it.emoji}</span>
-        <div class="cart-item-info">
-          <div class="cart-item-name">${h(it.name)}</div>
-          <div class="cart-item-options">
-            <span class="opt-tag size-tag">📏 ${h(it.size)}</span>
-            ${fTag}${tTags}
-          </div>
+    return `<div class="cart-item">
+      <span class="cart-item-emoji">${it.emoji}</span>
+      <div class="cart-item-info">
+        <div class="cart-item-name">${h(it.name)}</div>
+        <div class="cart-item-options"><span class="opt-tag size-tag">📏 ${h(it.size)}</span>${fTag}${tTags}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
+        <span class="cart-item-price">AED ${it.price*qty}</span>
+        <div class="qty-ctrl">
+          <button class="qty-btn" onclick="changeQty(${it.id},-1)">−</button>
+          <span class="qty-num">${qty}</span>
+          <button class="qty-btn" onclick="changeQty(${it.id},1)">＋</button>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
-          <span class="cart-item-price">AED ${it.price*qty}</span>
-          <div class="qty-ctrl">
-            <button class="qty-btn" onclick="changeQty(${it.id},-1)">−</button>
-            <span class="qty-num">${qty}</span>
-            <button class="qty-btn" onclick="changeQty(${it.id},1)">＋</button>
-          </div>
-        </div>
-      </div>`;
+      </div>
+    </div>`;
   }).join('');
   const discEl=document.getElementById('cartDiscount');
   if (isNewCustomer()) {
-    const discounted=applyDiscount(grand);
-    const saved=grand-discounted;
+    const discounted=applyDiscount(grand), saved=grand-discounted;
     document.getElementById('cartTotal').textContent='AED '+discounted;
     if (discEl) { discEl.style.display='flex'; discEl.innerHTML=`<span style="color:#4ECDC4;font-size:.85rem;">🎉 10% new customer discount: -AED ${saved}</span>`; }
   } else {
@@ -1222,10 +1046,7 @@ function renderCart() {
   }
 }
 
-function changeQty(id,delta) {
-  cart=cart.map(i=>i.id===id?{...i,qty:(i.qty||1)+delta}:i).filter(i=>(i.qty||1)>0);
-  renderCart();
-}
+function changeQty(id,delta) { cart=cart.map(i=>i.id===id?{...i,qty:(i.qty||1)+delta}:i).filter(i=>(i.qty||1)>0); renderCart(); }
 function removeFromCart(id) { cart=cart.filter(i=>i.id!==id); renderCart(); }
 function clearCart()  { if (confirm('Clear your entire order? 🗑️')) { cart=[]; renderCart(); } }
 function openCart()   { document.getElementById('cartPanel').classList.add('open'); document.getElementById('cartOverlay').classList.add('open'); }
@@ -1243,78 +1064,31 @@ async function doCheckout() {
   const discountAmt=subtotal-total;
 
   const order={
-    id:           Date.now(),
-    timestamp:    new Date().toISOString(),
-    user:         { name:currentUser.name, email:currentUser.email, picture:currentUser.picture },
-    items:        cart.flatMap(i=>Array(i.qty||1).fill({emoji:i.emoji,name:i.name,size:i.size,flavour:i.flavour,toppings:[...i.toppings],price:i.price})),
-    subtotal,
-    discount:     newCust?discountAmt:0,
-    discountNote: newCust?(DISCOUNT_PERCENT+'% new customer discount'):'',
-    total
+    id: Date.now(), timestamp: new Date().toISOString(),
+    user: { name:currentUser.name, email:currentUser.email, picture:currentUser.picture },
+    items: cart.flatMap(i=>Array(i.qty||1).fill({emoji:i.emoji,name:i.name,size:i.size,flavour:i.flavour,toppings:[...i.toppings],price:i.price})),
+    subtotal, discount:newCust?discountAmt:0,
+    discountNote:newCust?(DISCOUNT_PERCENT+'% new customer discount'):'', total
   };
-  await saveOrder(order);
+
+  // Show in admin instantly
+  atOrders=[order,...atOrders];
+  refreshAdminIfOpen();
+
+  // Save to JSONBin
+  await withData(d=>{ d.orders=[order,...(d.orders||[])]; return d; });
 
   launchConfetti();
   const lineArr=cart.map(i=>{
     const qty=i.qty||1;
-    const f=i.flavour?(' | \u2728 '+i.flavour):'';
-    const t=i.toppings.length?(' | '+i.toppings.join(', ')):'';
+    const f=i.flavour?' | '+i.flavour:'';
+    const t=i.toppings.length?' | '+i.toppings.join(', '):'';
     return i.emoji+' '+i.name+' x'+qty+' - '+i.size+f+t+' - AED '+(i.price*qty);
   });
-  const discLine=newCust?('\n\n\uD83C\uDF89 New customer 10% off: -AED '+discountAmt+'\n\uD83D\uDCB0 Total: AED '+total):('\n\n\uD83D\uDCB0 Total: AED '+total);
-  alert('\uD83C\uDF89 Order Placed!\n\n'+lineArr.join('\n')+'\n\n---'+discLine+'\n\n\uD83D\uDCCD Come pick it up at our stall in Nad Al Hamar!\nThank you, '+currentUser.name.split(' ')[0]+'! We\'ll have it ready \uD83E\uDD5E');
+  const discLine=newCust?('\n\n🎉 10% off: -AED '+discountAmt+'\n💰 Total: AED '+total):('\n\n💰 Total: AED '+total);
+  alert('🎉 Order Placed!\n\n'+lineArr.join('\n')+'\n\n──────────────'+discLine+'\n\n📍 Nad Al Hamar, Dubai\nThank you, '+currentUser.name.split(' ')[0]+'! 🥞💛');
 
   cart=[]; renderCart(); closeCart();
-}
-
-/* ════════════════════════════════════════════════════
-   ORDER STORAGE (Airtable)
-════════════════════════════════════════════════════ */
-async function saveOrder(order) {
-  // Add to local mirror instantly so admin sees it right away
-  atOrders = [order, ...atOrders];
-  refreshAdminIfOpen();
-
-  if (AT_READY) {
-    await atCreate('orders', {
-      data:            JSON.stringify(order),
-      customer_name:   order.user ? order.user.name  : '',
-      customer_email:  order.user ? order.user.email : '',
-      total:           order.total || 0
-    });
-  } else {
-    try {
-      const all=JSON.parse(localStorage.getItem('mm_orders_v2')||'[]');
-      all.unshift(order);
-      localStorage.setItem('mm_orders_v2',JSON.stringify(all));
-    } catch(e) {}
-  }
-}
-
-async function deleteAllOrders() {
-  if (AT_READY) {
-    await atDeleteAll('orders');
-    atOrders=[];
-  } else {
-    try { localStorage.removeItem('mm_orders_v2'); } catch(e) {}
-  }
-}
-
-async function deleteAllCustomers() {
-  if (AT_READY) {
-    await atDeleteAll('customers');
-    atCustomers=[];
-  } else {
-    try { localStorage.removeItem('mm_customers_v1'); } catch(e) {}
-  }
-}
-
-async function deleteAllComments() {
-  if (AT_READY) {
-    await atDeleteAll('comments');
-  } else {
-    try { localStorage.removeItem('mm_comments_v2'); } catch(e) {}
-  }
 }
 
 /* ════════════════════════════════════════════════════
@@ -1323,192 +1097,151 @@ async function deleteAllComments() {
 function openAdminGate() {
   if (adminAuthed) { renderAdminPanel(); return; }
   document.getElementById('adminContent').innerHTML=`
-    <div class="admin-login-wrap">
-      <div class="admin-login-box">
-        <div style="font-size:2.8rem;margin-bottom:10px;">🔐</div>
-        <h2>Admin Access</h2>
-        <p>Enter your admin password to continue</p>
-        <input class="admin-input" type="password" id="adminPwField" placeholder="Password…"
-          onkeydown="if(event.key==='Enter')verifyAdminPw()"/>
-        <button class="admin-login-btn" onclick="verifyAdminPw()">🚀 Open Dashboard</button>
-        <div class="admin-error" id="adminErr">❌ Incorrect password. Try again.</div>
-        <br/>
-        <button class="admin-cancel-link" onclick="closeAdmin()">Cancel</button>
-      </div>
-    </div>`;
+    <div class="admin-login-wrap"><div class="admin-login-box">
+      <div style="font-size:2.8rem;margin-bottom:10px;">🔐</div>
+      <h2>Admin Access</h2><p>Enter your admin password to continue</p>
+      <input class="admin-input" type="password" id="adminPwField" placeholder="Password…" onkeydown="if(event.key==='Enter')verifyAdminPw()"/>
+      <button class="admin-login-btn" onclick="verifyAdminPw()">🚀 Open Dashboard</button>
+      <div class="admin-error" id="adminErr">❌ Incorrect password. Try again.</div>
+      <br/><button class="admin-cancel-link" onclick="closeAdmin()">Cancel</button>
+    </div></div>`;
   document.getElementById('adminOverlay').classList.add('show');
   setTimeout(()=>{ const f=document.getElementById('adminPwField'); if(f) f.focus(); },120);
 }
-
 function verifyAdminPw() {
-  const f=document.getElementById('adminPwField');
-  if (!f) return;
+  const f=document.getElementById('adminPwField'); if (!f) return;
   if (f.value===ADMIN_PASSWORD) { adminAuthed=true; renderAdminPanel(); }
-  else {
-    const e=document.getElementById('adminErr');
-    if (e) e.style.display='block';
-    f.value=''; f.focus();
-  }
+  else { const e=document.getElementById('adminErr'); if(e) e.style.display='block'; f.value=''; f.focus(); }
 }
 
 /* ════════════════════════════════════════════════════
    ADMIN DASHBOARD
 ════════════════════════════════════════════════════ */
-async function renderAdminPanel() {
-  const orders    = atOrders;
-  const customers = atCustomers;
-  const revenue   = orders.reduce((s,o)=>s+(Number(o.total)||0),0);
-  const itemCount = orders.reduce((s,o)=>s+((o.items&&o.items.length)||0),0);
-  const open      = storeIsOpen();
+function renderAdminPanel() {
+  const orders=atOrders, customers=atCustomers, comments=pageComments;
+  const revenue=orders.reduce((s,o)=>s+(Number(o.total)||0),0);
+  const itemCount=orders.reduce((s,o)=>s+((o.items&&o.items.length)||0),0);
+  const open=storeIsOpen();
 
-  // Use in-memory pageComments for instant display (already synced from Airtable on load)
-  const adminComments = pageComments;
-
-  const syncStatus = AT_READY
-    ? '<span style="color:#4ECDC4;font-size:.75rem;">🟢 Airtable live sync ON</span>'
-    : '<span style="color:#FF6B9D;font-size:.75rem;">⚠️ Airtable not configured — paste your token &amp; base ID at top of script</span>';
-
-  const orderHTML = orders.length===0
-    ? `<div class="no-orders-msg">📭 No orders yet. Open the store to start accepting orders!</div>`
-    : orders.map(o=>{
-        const d=new Date(o.timestamp||o.created_at||Date.now());
-        const ts=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' · '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-        const name =h(o.user?o.user.name:'Unknown');
-        const email=h(o.user?o.user.email:'');
-        const pic  =o.user&&o.user.picture?o.user.picture:'';
-        const picEl=pic?`<img class="order-pic" src="${h(pic)}" alt=""/>`:`<div class="order-pic-ph">👤</div>`;
-        const itemRows=(o.items||[]).map(it=>{
-          const f=it.flavour?` · ✨ ${h(it.flavour)}`:'';
-          const t=it.toppings&&it.toppings.length?` · ${it.toppings.map(x=>h(x)).join(', ')}`:'';
-          return `<div class="order-item-row">${it.emoji} <strong style="color:white;">${h(it.name)}</strong> — ${h(it.size)}${f}${t}<span class="order-item-price">AED ${it.price}</span></div>`;
-        }).join('');
-        return `
-          <div class="order-card">
-            <div class="order-card-head">
-              <div class="order-who">${picEl}<div><div class="order-name">${name}</div><div class="order-email">${email}</div></div></div>
-              <div class="order-right">
-                <span class="order-total-pill">AED ${o.total||0}</span>
-                ${o.discount?`<div style="font-size:.75rem;color:#4ECDC4;margin-top:3px;">🎉 -AED ${o.discount} discount</div>`:''}
-                <div class="order-time">${ts}</div>
-              </div>
-            </div>
-            <div class="order-items-list">${itemRows}</div>
-          </div>`;
+  const orderHTML=orders.length===0
+    ?'<div class="no-orders-msg">📭 No orders yet. Open the store to start accepting orders!</div>'
+    :orders.map(o=>{
+      const d=new Date(o.timestamp||Date.now());
+      const ts=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' · '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      const name=h(o.user?o.user.name:'Unknown'), email=h(o.user?o.user.email:'');
+      const pic=o.user&&o.user.picture?o.user.picture:'';
+      const picEl=pic?`<img class="order-pic" src="${h(pic)}" alt=""/>`:'<div class="order-pic-ph">👤</div>';
+      const itemRows=(o.items||[]).map(it=>{
+        const f=it.flavour?' · ✨ '+h(it.flavour):'';
+        const t=it.toppings&&it.toppings.length?' · '+it.toppings.map(x=>h(x)).join(', '):'';
+        return '<div class="order-item-row">'+it.emoji+' <strong style="color:white;">'+h(it.name)+'</strong> — '+h(it.size)+f+t+'<span class="order-item-price">AED '+it.price+'</span></div>';
       }).join('');
+      return `<div class="order-card">
+        <div class="order-card-head">
+          <div class="order-who">${picEl}<div><div class="order-name">${name}</div><div class="order-email">${email}</div></div></div>
+          <div class="order-right">
+            <span class="order-total-pill">AED ${o.total||0}</span>
+            ${o.discount?'<div style="font-size:.75rem;color:#4ECDC4;margin-top:3px;">🎉 -AED '+o.discount+' discount</div>':''}
+            <div class="order-time">${ts}</div>
+          </div>
+        </div>
+        <div class="order-items-list">${itemRows}</div>
+      </div>`;
+    }).join('');
 
   document.getElementById('adminContent').innerHTML=`
-    <div class="admin-panel-wrap">
-      <div class="admin-panel">
-        <div class="admin-topbar">
-          <div class="admin-topbar-left">
-            <h1>🍳 Maple &amp; Melt — Dashboard</h1>
-            <p>Admin only · ${syncStatus}</p>
-            <p id="atStatus"></p>
-          </div>
-          <button class="admin-close" onclick="closeAdmin()">✕</button>
+    <div class="admin-panel-wrap"><div class="admin-panel">
+      <div class="admin-topbar">
+        <div class="admin-topbar-left">
+          <h1>🍳 Maple &amp; Melt — Dashboard</h1>
+          <p>Admin only · <span style="color:#4ECDC4;font-size:.75rem;">🟢 JSONBin live sync ON</span></p>
         </div>
-        <div class="admin-body">
-
-          <div class="admin-stats">
-            <div class="stat-card"><div class="stat-val">${orders.length}</div><div class="stat-label">Total Orders</div></div>
-            <div class="stat-card" style="border-color:var(--yellow);background:rgba(255,211,61,.08);">
-              <div class="stat-val" style="font-size:2.6rem;color:var(--yellow);">AED&nbsp;${revenue}</div>
-              <div class="stat-label" style="color:var(--yellow);font-weight:700;">💰 Total Money Earned</div>
-            </div>
-            <div class="stat-card"><div class="stat-val">${itemCount}</div><div class="stat-label">Items Sold</div></div>
-            <div class="stat-card"><div class="stat-val">${customers.length}</div><div class="stat-label">Registered Customers</div></div>
-            <div class="stat-card">
-              <div class="stat-val" style="color:${open?'#4ECDC4':'#FF6B9D'};font-size:1.6rem;">${open?'🟢 Open':'🔴 Closed'}</div>
-              <div class="stat-label">Store Status</div>
-            </div>
-          </div>
-
-          <div>
-            <div class="admin-sh">🏪 Store Control</div>
-            <div class="store-ctrl">
-              <div class="store-ctrl-info">
-                <h3>${open?'✅ Store is OPEN — customers can place orders':'🔒 Store is CLOSED — ordering is blocked'}</h3>
-                <p>${open?'Tap "Close Store" to stop accepting orders.':'Tap "Open Store" to let customers order.'}</p>
-              </div>
-              <button class="toggle-store-btn ${open?'do-close':'do-open'}" onclick="adminFlipStore()">
-                ${open?'🔒 Close Store':'🟢 Open Store'}
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <div class="admin-sh">
-              <span>👥 Registered Customers (${customers.length})</span>
-              ${customers.length?`<button class="clear-orders-btn" onclick="adminClearCustomers()">🗑️ Delete All Customers</button>`:''}
-            </div>
-            ${customers.length===0
-              ? `<div class="no-customers-msg">📭 No customers yet.</div>`
-              : `<div style="overflow-x:auto;border-radius:14px;border:1px solid rgba(255,255,255,.09);">
-                  <table class="customers-table">
-                    <thead><tr><th></th><th>Name</th><th>Email</th><th>Status</th><th>Registered</th><th>Last Sign-in</th><th>Orders &amp; Spent</th></tr></thead>
-                    <tbody>
-                      ${customers.map(c=>{
-                        const initials=(c.name||'?')[0].toUpperCase();
-                        const regDate=c.registeredAt?new Date(c.registeredAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
-                        const lastSeen=c.lastSeen?new Date(c.lastSeen).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+new Date(c.lastSeen).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'—';
-                        const daysSince=c.registeredAt?(Date.now()-new Date(c.registeredAt).getTime())/(1000*60*60*24):999;
-                        const daysLeft=Math.max(0,Math.ceil(10-daysSince));
-                        const isNew=daysLeft>0;
-                        const statusBadge=isNew
-                          ?`<span style="background:rgba(78,205,196,.2);color:#4ECDC4;border:1px solid #4ECDC4;border-radius:20px;padding:2px 10px;font-size:.78rem;font-family:'Fredoka One',cursive;white-space:nowrap;">🆕 New · ${daysLeft}d left</span>`
-                          :`<span style="color:rgba(255,255,255,.3);font-size:.8rem;">Regular</span>`;
-                        const orderCount=orders.filter(o=>o.user&&o.user.email&&o.user.email.toLowerCase()===c.email.toLowerCase()).length;
-                        const totalSpent=orders.filter(o=>o.user&&o.user.email&&o.user.email.toLowerCase()===c.email.toLowerCase()).reduce((s,o)=>s+(Number(o.total)||0),0);
-                        const picEl=c.picture?`<img src="${h(c.picture)}" style="width:30px;height:30px;border-radius:50%;border:2px solid var(--yellow);vertical-align:middle;" alt=""/>` :`<span class="cust-initials">${h(initials)}</span>`;
-                        return `<tr>
-                          <td>${picEl}</td>
-                          <td style="color:white;font-weight:700;">${h(c.name||'—')}</td>
-                          <td style="font-size:.82rem;">${h(c.email||'—')}</td>
-                          <td>${statusBadge}</td>
-                          <td>${regDate}</td>
-                          <td style="font-size:.82rem;">${lastSeen}</td>
-                          <td>${orderCount>0?`<span style="color:var(--yellow);font-family:'Fredoka One',cursive;">${orderCount} order${orderCount!==1?'s':''} · AED ${totalSpent}</span>`:'<span style="color:rgba(255,255,255,.25);">None yet</span>'}</td>
-                        </tr>`;
-                      }).join('')}
-                    </tbody>
-                  </table>
-                </div>`}
-          </div>
-
-          <div>
-            <div class="admin-sh">
-              <span>📋 All Orders (${orders.length})</span>
-              ${orders.length?`<button class="clear-orders-btn" onclick="adminClearOrders()">🗑️ Delete All Orders</button>`:''}
-            </div>
-            <div class="orders-list">${orderHTML}</div>
-          </div>
-
-          <div>
-            <div class="admin-sh">
-              <span>💬 Comments (${adminComments.length})</span>
-              ${adminComments.length ? `<button class="clear-orders-btn" onclick="adminClearComments()">🗑️ Delete All Comments</button>` : ''}
-            </div>
-            ${adminComments.length === 0
-              ? `<div class="no-orders-msg">📭 No comments yet.</div>`
-              : `<div style="display:flex;flex-direction:column;gap:12px;">
-                  ${adminComments.map(c => `
-                    <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:14px 18px;">
-                      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-                        <div style="width:32px;height:32px;border-radius:50%;background:${h(c.color||'#FFD93D')};display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;font-size:.9rem;color:white;flex-shrink:0;">${h(c.initials||'?')}</div>
-                        <div>
-                          <div style="font-family:'Fredoka One',cursive;color:white;font-size:.95rem;">${h(c.name||'—')}${c.location ? ' — ' + h(c.location) : ''}</div>
-                          <div style="font-size:.75rem;color:rgba(255,255,255,.35);">${h(c.date||'')}</div>
-                        </div>
-                        <span style="margin-left:auto;font-size:1.3rem;">${h(c.emoji||'😊')}</span>
-                      </div>
-                      <p style="font-size:.88rem;color:rgba(255,255,255,.7);line-height:1.5;">${h(c.text||'')}</p>
-                    </div>`).join('')}
-                </div>`}
-          </div>
-
-        </div>
+        <button class="admin-close" onclick="closeAdmin()">✕</button>
       </div>
-    </div>`;
+      <div class="admin-body">
+
+        <div class="admin-stats">
+          <div class="stat-card"><div class="stat-val">${orders.length}</div><div class="stat-label">Total Orders</div></div>
+          <div class="stat-card" style="border-color:var(--yellow);background:rgba(255,211,61,.08);">
+            <div class="stat-val" style="font-size:2.6rem;color:var(--yellow);">AED&nbsp;${revenue}</div>
+            <div class="stat-label" style="color:var(--yellow);font-weight:700;">💰 Total Money Earned</div>
+          </div>
+          <div class="stat-card"><div class="stat-val">${itemCount}</div><div class="stat-label">Items Sold</div></div>
+          <div class="stat-card"><div class="stat-val">${customers.length}</div><div class="stat-label">Registered Customers</div></div>
+          <div class="stat-card">
+            <div class="stat-val" style="color:${open?'#4ECDC4':'#FF6B9D'};font-size:1.6rem;">${open?'🟢 Open':'🔴 Closed'}</div>
+            <div class="stat-label">Store Status</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="admin-sh">🏪 Store Control</div>
+          <div class="store-ctrl">
+            <div class="store-ctrl-info">
+              <h3>${open?'✅ Store is OPEN — customers can place orders':'🔒 Store is CLOSED — ordering is blocked'}</h3>
+              <p>${open?'Tap "Close Store" to stop accepting orders.':'Tap "Open Store" to let customers order.'}</p>
+            </div>
+            <button class="toggle-store-btn ${open?'do-close':'do-open'}" onclick="adminFlipStore()">
+              ${open?'🔒 Close Store':'🟢 Open Store'}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div class="admin-sh">
+            <span>👥 Registered Customers (${customers.length})</span>
+            ${customers.length?'<button class="clear-orders-btn" onclick="adminClearCustomers()">🗑️ Delete All Customers</button>':''}
+          </div>
+          ${customers.length===0
+            ?'<div class="no-customers-msg">📭 No customers yet.</div>'
+            :`<div style="overflow-x:auto;border-radius:14px;border:1px solid rgba(255,255,255,.09);">
+                <table class="customers-table">
+                  <thead><tr><th></th><th>Name</th><th>Email</th><th>Status</th><th>Registered</th><th>Last Sign-in</th><th>Orders &amp; Spent</th></tr></thead>
+                  <tbody>${customers.map(c=>{
+                    const ini=(c.name||'?')[0].toUpperCase();
+                    const reg=c.registeredAt?new Date(c.registeredAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
+                    const ls=c.lastSeen?new Date(c.lastSeen).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+new Date(c.lastSeen).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'—';
+                    const days=c.registeredAt?(Date.now()-new Date(c.registeredAt).getTime())/(1000*60*60*24):999;
+                    const dl=Math.max(0,Math.ceil(10-days));
+                    const badge=dl>0?'<span style="background:rgba(78,205,196,.2);color:#4ECDC4;border:1px solid #4ECDC4;border-radius:20px;padding:2px 10px;font-size:.78rem;white-space:nowrap;">🆕 New · '+dl+'d left</span>':'<span style="color:rgba(255,255,255,.3);font-size:.8rem;">Regular</span>';
+                    const oc=orders.filter(o=>o.user&&o.user.email&&o.user.email.toLowerCase()===c.email.toLowerCase()).length;
+                    const ts2=orders.filter(o=>o.user&&o.user.email&&o.user.email.toLowerCase()===c.email.toLowerCase()).reduce((s,o)=>s+(Number(o.total)||0),0);
+                    const picEl=c.picture?'<img src="'+h(c.picture)+'" style="width:30px;height:30px;border-radius:50%;border:2px solid var(--yellow);vertical-align:middle;" alt=""/>':'<span class="cust-initials">'+h(ini)+'</span>';
+                    return '<tr><td>'+picEl+'</td><td style="color:white;font-weight:700;">'+h(c.name||'—')+'</td><td style="font-size:.82rem;">'+h(c.email||'—')+'</td><td>'+badge+'</td><td>'+reg+'</td><td style="font-size:.82rem;">'+ls+'</td><td>'+(oc>0?'<span style="color:var(--yellow);font-family:\'Fredoka One\',cursive;">'+oc+' order'+(oc!==1?'s':'')+' · AED '+ts2+'</span>':'<span style="color:rgba(255,255,255,.25);">None yet</span>')+'</td></tr>';
+                  }).join('')}</tbody>
+                </table>
+              </div>`}
+        </div>
+
+        <div>
+          <div class="admin-sh">
+            <span>📋 All Orders (${orders.length})</span>
+            ${orders.length?'<button class="clear-orders-btn" onclick="adminClearOrders()">🗑️ Delete All Orders</button>':''}
+          </div>
+          <div class="orders-list">${orderHTML}</div>
+        </div>
+
+        <div>
+          <div class="admin-sh">
+            <span>💬 Comments (${comments.length})</span>
+            ${comments.length?'<button class="clear-orders-btn" onclick="adminClearComments()">🗑️ Delete All Comments</button>':''}
+          </div>
+          ${comments.length===0
+            ?'<div class="no-orders-msg">📭 No comments yet.</div>'
+            :`<div style="display:flex;flex-direction:column;gap:12px;">${comments.map(c=>`
+                <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:14px 18px;">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                    <div style="width:32px;height:32px;border-radius:50%;background:${h(c.color||'#FFD93D')};display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;font-size:.9rem;color:white;flex-shrink:0;">${h(c.initials||'?')}</div>
+                    <div><div style="font-family:'Fredoka One',cursive;color:white;font-size:.95rem;">${h(c.name||'—')}${c.location?' — '+h(c.location):''}</div>
+                    <div style="font-size:.75rem;color:rgba(255,255,255,.35);">${h(c.date||'')}</div></div>
+                    <span style="margin-left:auto;font-size:1.3rem;">${h(c.emoji||'😊')}</span>
+                  </div>
+                  <p style="font-size:.88rem;color:rgba(255,255,255,.7);line-height:1.5;">${h(c.text||'')}</p>
+                </div>`).join('')}</div>`}
+        </div>
+
+      </div>
+    </div></div>`;
   document.getElementById('adminOverlay').classList.add('show');
 }
 
@@ -1518,25 +1251,27 @@ async function adminFlipStore() {
 }
 async function adminClearOrders() {
   if (confirm('Permanently delete ALL orders? This cannot be undone.')) {
-    await deleteAllOrders();
+    atOrders=[];
+    await withData(d=>{ d.orders=[]; return d; });
     renderAdminPanel();
   }
 }
 async function adminClearCustomers() {
   if (confirm('Permanently delete ALL customers? This cannot be undone.')) {
-    await deleteAllCustomers();
+    atCustomers=[];
+    await withData(d=>{ d.customers=[]; return d; });
     renderAdminPanel();
   }
 }
 async function adminClearComments() {
   if (confirm('Permanently delete ALL comments? This cannot be undone.')) {
-    await deleteAllComments();
+    pageComments=[];
+    await withData(d=>{ d.comments=[]; return d; });
     renderComments([]);
+    renderAdminPanel();
   }
 }
-function closeAdmin() {
-  document.getElementById('adminOverlay').classList.remove('show');
-}
+function closeAdmin() { document.getElementById('adminOverlay').classList.remove('show'); }
 
 document.addEventListener('keydown', e => {
   if (e.ctrlKey && e.shiftKey && e.key==='A') { e.preventDefault(); openAdminGate(); }
@@ -1549,21 +1284,22 @@ const AVATAR_COLORS=['#FFD93D','#4ECDC4','#FF6B9D','#C77DFF','#7BC67E','#FF6B35'
 let pickedEmoji='😍';
 
 function commentCard(c) {
-  return `
-    <div class="comment-card">
-      <div class="comment-header">
-        <div class="comment-avatar" style="background:${h(c.color)};">${h(c.initials)}</div>
-        <div style="flex:1;min-width:0;">
-          <span class="comment-name">${h(c.name)}${c.location?' — '+h(c.location):''}</span>
-          <div style="font-size:.78rem;color:#bbb;font-family:'Nunito',sans-serif;margin-top:1px;">${h(c.date)}</div>
-        </div>
-        <span class="comment-emoji-badge">${h(c.emoji)}</span>
+  return `<div class="comment-card">
+    <div class="comment-header">
+      <div class="comment-avatar" style="background:${h(c.color)};">${h(c.initials)}</div>
+      <div style="flex:1;min-width:0;">
+        <span class="comment-name">${h(c.name)}${c.location?' — '+h(c.location):''}</span>
+        <div style="font-size:.78rem;color:#bbb;font-family:'Nunito',sans-serif;margin-top:1px;">${h(c.date)}</div>
       </div>
-      <p class="comment-text">${h(c.text)}</p>
-    </div>`;
+      <span class="comment-emoji-badge">${h(c.emoji)}</span>
+    </div>
+    <p class="comment-text">${h(c.text)}</p>
+  </div>`;
 }
+
 function renderComments(arr) {
   const list=document.getElementById('commentsList');
+  if (!list) return;
   if (!arr||!arr.length) {
     list.innerHTML='<div style="text-align:center;color:#bbb;font-family:Nunito,sans-serif;padding:30px;font-size:1.1rem;">No comments yet — be the first! 🥞</div>';
     return;
@@ -1571,45 +1307,10 @@ function renderComments(arr) {
   list.innerHTML=arr.map(commentCard).join('');
 }
 
-function loadCommentsLocal() {
-  try {
-    const s=localStorage.getItem('mm_comments_v2');
-    renderComments(s?JSON.parse(s):[]);
-  } catch(e) { renderComments([]); }
-}
-
-// In-memory store of all comments currently shown on the page
-let pageComments = [];
-
-async function saveComment(comment) {
-  // Step 1 — Show instantly on the public page
-  pageComments = [comment, ...pageComments];
-  renderComments(pageComments);
-
-  // Step 2 — Refresh admin instantly (no waiting for Airtable)
-  refreshAdminIfOpen();
-
-  // Step 3 — Save to Airtable in the background
-  if (AT_READY) {
-    await atCreate('comments', {
-      data:         JSON.stringify(comment),
-      created_time: new Date().toISOString()
-    });
-  } else {
-    // localStorage fallback when Airtable not configured
-    try {
-      const all = JSON.parse(localStorage.getItem('mm_comments_v2') || '[]');
-      all.unshift(comment);
-      localStorage.setItem('mm_comments_v2', JSON.stringify(all));
-    } catch(e) {}
-  }
-}
-
 document.querySelectorAll('.emoji-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('.emoji-btn').forEach(b=>b.classList.remove('selected'));
-    btn.classList.add('selected');
-    pickedEmoji=btn.dataset.emoji;
+    btn.classList.add('selected'); pickedEmoji=btn.dataset.emoji;
   });
 });
 
@@ -1622,7 +1323,15 @@ async function submitComment() {
   const color=AVATAR_COLORS[Math.floor(Math.random()*AVATAR_COLORS.length)];
   const date=new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
   const comment={name,location:loc,text,emoji:pickedEmoji,color,initials:name[0].toUpperCase(),date,timestamp:Date.now()};
-  await saveComment(comment);
+
+  // Show instantly on page and in admin
+  pageComments=[comment,...pageComments];
+  renderComments(pageComments);
+  refreshAdminIfOpen();
+
+  // Save to JSONBin
+  await withData(d=>{ d.comments=[comment,...(d.comments||[])]; return d; });
+
   document.getElementById('nameInput').value='';
   document.getElementById('locationInput').value='';
   document.getElementById('commentInput').value='';
@@ -1630,7 +1339,7 @@ async function submitComment() {
   document.querySelector('.emoji-btn[data-emoji="😍"]').classList.add('selected');
   pickedEmoji='😍';
   launchConfetti();
-  setTimeout(()=>{ document.getElementById('commentsList').scrollIntoView({behavior:'smooth',block:'start'}); },400);
+  setTimeout(()=>{ document.getElementById('commentsList').scrollIntoView({behavior:'smooth',block:'start'}); },300);
 }
 
 /* ════════════════════════════════════════════════════
@@ -1641,13 +1350,11 @@ function launchConfetti() {
   el.style.display='block'; el.innerHTML='';
   const cols=['#FFD93D','#FF6B35','#FF6B9D','#C77DFF','#4ECDC4','#7BC67E'];
   for (let i=0;i<60;i++) {
-    const p=document.createElement('div');
-    p.className='confetti-piece';
-    p.style.left=Math.random()*100+'vw';
-    p.style.top='-20px';
+    const p=document.createElement('div'); p.className='confetti-piece';
+    p.style.left=Math.random()*100+'vw'; p.style.top='-20px';
     p.style.background=cols[Math.floor(Math.random()*cols.length)];
     p.style.animationDelay=Math.random()*0.6+'s';
-    p.style.transform=`rotate(${Math.random()*360}deg)`;
+    p.style.transform='rotate('+Math.random()*360+'deg)';
     el.appendChild(p);
   }
   setTimeout(()=>{ el.style.display='none'; },2200);
@@ -1667,11 +1374,7 @@ function launchConfetti() {
    ROTATING SLOGANS
 ════════════════════════════════════════════════════ */
 (function(){
-  const slogans=[
-    '✨ Drizzled with love, poured with passion ✨',
-    '✨ Melt into every sip and bite ✨',
-    '✨ Where warmth meets flavour ✨'
-  ];
+  const slogans=['✨ Drizzled with love, poured with passion ✨','✨ Melt into every sip and bite ✨','✨ Where warmth meets flavour ✨'];
   let idx=0;
   const el=document.getElementById('tagline');
   setInterval(()=>{
@@ -1683,13 +1386,20 @@ function launchConfetti() {
 /* ════════════════════════════════════════════════════
    INIT
 ════════════════════════════════════════════════════ */
-// Wipe old cached comments so stale data never shows
-try { localStorage.removeItem('mm_comments_v2'); } catch(e) {}
-
 syncClosedBanner();
 renderCart();
 renderComments([]);
-startPolling();  // loads all data from Airtable + polls every 8s
+
+// Init JSONBin then start polling
+(async function(){
+  const ok = await jbInit();
+  if (ok) {
+    startPolling();
+  } else {
+    document.getElementById('closedBanner').textContent = '⚠️ Could not connect to database. Try refreshing.';
+    document.getElementById('closedBanner').classList.add('show');
+  }
+})();
 </script>
 </body>
 </html>
