@@ -609,8 +609,7 @@ const JB_HEADERS = {
   'X-Master-Key': JB_KEY
 };
 
-let   JB_BIN_ID = null;  // set after first load
-const JB_ID_KEY = 'mm_jb_bin_id';  // localStorage key to remember bin ID
+const JB_BIN_ID = '69b6b187c3097a1dd528df83';  // shared bin — same for ALL devices
 
 /* Default empty data structure */
 function emptyData() {
@@ -619,10 +618,8 @@ function emptyData() {
 
 /* Read the bin — returns full data object */
 async function jbRead() {
-  const id = JB_BIN_ID || localStorage.getItem(JB_ID_KEY);
-  if (!id) return null;
   try {
-    const r = await fetch(`${JB_BASE}/${id}/latest`, { headers: JB_HEADERS });
+    const r = await fetch(`${JB_BASE}/${JB_BIN_ID}/latest`, { headers: JB_HEADERS });
     if (!r.ok) return null;
     const j = await r.json();
     return j.record || null;
@@ -633,11 +630,9 @@ async function jbRead() {
 let _lastWriteTime = 0;  // timestamp of last write — polls pause for 15s after any write
 
 async function jbWrite(data) {
-  const id = JB_BIN_ID || localStorage.getItem(JB_ID_KEY);
-  if (!id) return false;
-  _lastWriteTime = Date.now();  // record write time BEFORE fetch
+  _lastWriteTime = Date.now();
   try {
-    const r = await fetch(`${JB_BASE}/${id}`, {
+    const r = await fetch(`${JB_BASE}/${JB_BIN_ID}`, {
       method:  'PUT',
       headers: JB_HEADERS,
       body:    JSON.stringify(data)
@@ -660,60 +655,14 @@ async function jbCreate() {
   } catch(e) { return null; }
 }
 
-/* ── FIXED BIN ID ─────────────────────────────────────────
-   After your website runs for the first time, paste the
-   bin ID shown in your browser console here so ALL devices
-   share the same data. Leave blank on first run.
-   Example: const FIXED_BIN_ID = '64abc123def456';
-─────────────────────────────────────────────────────── */
-const FIXED_BIN_ID = '69b6b187c3097a1dd528df83';
-
-/* Load or create the bin on startup */
+/* Initialise — just verify the bin is reachable */
 async function jbInit() {
-  // If a fixed bin ID is hardcoded, always use that — all devices share it
-  if (FIXED_BIN_ID) {
-    JB_BIN_ID = FIXED_BIN_ID;
-    localStorage.setItem(JB_ID_KEY, FIXED_BIN_ID);
-    return true;
+  const data = await jbRead();
+  if (!data) {
+    // Bin empty or first run — create initial data
+    await jbWrite(emptyData());
   }
-
-  // Try to find existing bin by searching JSONBin
-  let id = localStorage.getItem(JB_ID_KEY);
-
-  if (!id) {
-    // First run on this device — try to find our bin by name
-    try {
-      const r = await fetch('https://api.jsonbin.io/v3/b?meta=false', {
-        headers: { ...JB_HEADERS, 'X-Bin-Name': 'maple-and-melt' }
-      });
-      if (r.ok) {
-        const list = await r.json();
-        if (Array.isArray(list) && list.length > 0) {
-          // Found existing bin — use it
-          id = list[0].record ? list[0].record.id : list[0].id;
-        }
-      }
-    } catch(e) {}
-  }
-
-  if (!id) {
-    // Still no bin — create a new one
-    showLoadingBanner('Setting up your store...');
-    id = await jbCreate();
-    if (id) {
-      console.log('%c🎉 Bin created! Copy this ID into FIXED_BIN_ID in your HTML: ' + id, 'background:#4ECDC4;color:white;padding:4px 8px;border-radius:4px;font-size:14px;');
-    } else {
-      showLoadingBanner('');
-      return false;
-    }
-  }
-
-  if (id) {
-    localStorage.setItem(JB_ID_KEY, id);
-    JB_BIN_ID = id;
-    return true;
-  }
-  return false;
+  return true;
 }
 
 function showLoadingBanner(msg) {
