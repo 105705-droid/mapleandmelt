@@ -149,6 +149,9 @@
     /* ── SCROLL REVEAL ── */
     .reveal{opacity:0;transform:translateY(30px);transition:all .6s ease;}
     .reveal.visible{opacity:1;transform:translateY(0);}
+    /* Show content immediately if JS hasn't run yet after 1s */
+    @keyframes revealFallback{to{opacity:1;transform:none;}}
+    .reveal{animation:revealFallback 0s 1.5s forwards;}
 
     /* ── MENU MODAL ── */
     .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3500;backdrop-filter:blur(4px);}
@@ -216,6 +219,13 @@
     .cart-item-remove{background:none;border:1px solid #eee;border-radius:20px;cursor:pointer;color:#ccc;
       font-size:.8rem;padding:4px 10px;transition:all .2s;font-family:'Nunito',sans-serif;font-weight:700;flex-shrink:0;}
     .cart-item-remove:hover{color:white;background:var(--pink);border-color:var(--pink);}
+    .qty-ctrl{display:flex;align-items:center;gap:0;border:2px solid var(--orange);border-radius:50px;overflow:hidden;}
+    .qty-btn{background:none;border:none;color:var(--orange);font-size:1.1rem;font-weight:700;
+      width:30px;height:28px;cursor:pointer;transition:background .15s;line-height:1;
+      display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;}
+    .qty-btn:hover{background:var(--orange);color:white;}
+    .qty-num{font-family:'Fredoka One',cursive;font-size:.95rem;color:var(--brown);
+      min-width:24px;text-align:center;line-height:28px;}
     .cart-footer{padding:20px;border-top:2px solid #f0f0f0;background:white;}
     .cart-total{display:flex;justify-content:space-between;align-items:center;
       font-family:'Fredoka One',cursive;font-size:1.4rem;color:var(--brown);margin-bottom:14px;}
@@ -552,6 +562,7 @@
   </div>
   <div class="cart-footer" id="cartFooter" style="display:none;">
     <div class="cart-total"><span>Total:</span><span id="cartTotal">AED 0</span></div>
+    <div id="cartDiscount" style="display:none;margin-bottom:8px;"></div>
     <button class="checkout-btn" onclick="doCheckout()">✅ Place Order at Stall!</button>
     <button class="clear-btn" onclick="clearCart()">🗑️ Clear Order</button>
   </div>
@@ -576,31 +587,130 @@
 <div class="confetti-burst" id="confetti"></div>
 
 <script>
-/* ═══════════════════════════════════════════
-   ▶ CONFIGURATION — edit these
-═══════════════════════════════════════════ */
-// Your secret admin password — change this to something only you know!
-const ADMIN_PASSWORD = 'viper2016!';
+/* ════════════════════════════════════════════════════
+   MAPLE & MELT — AIRTABLE EDITION
+   All data (store status, orders, customers, comments)
+   is saved permanently to Airtable.
+   Works from any device, survives closing your laptop.
+════════════════════════════════════════════════════ */
 
-/* ═══════════════════════════════════════════
-   ▶ STORAGE KEYS
-═══════════════════════════════════════════ */
-const SK_COMMENTS  = 'mm_comments_v2';
-const SK_ORDERS    = 'mm_orders_v2';
-const SK_STORE     = 'mm_store_open';
-const SK_CUSTOMERS = 'mm_customers_v1';
+/* ── YOUR AIRTABLE CONFIG ──────────────────────────
+   1. Go to airtable.com → sign in → create base "Maple & Melt"
+   2. Create these 4 tables with fields listed below:
+      • store_status : is_open (Checkbox)
+      • orders       : data (Long text), customer_name (Single line text), customer_email (Single line text), total (Number)
+      • customers    : email (Single line text), name (Single line text), picture (URL), registered_at (Single line text), last_seen (Single line text)
+      • comments     : data (Long text), created_time (Single line text)
+   3. Get your token: airtable.com/create/tokens → Create token
+      Scopes: data.records:read + data.records:write + schema.bases:read
+      Access: your Maple & Melt base
+   4. Get Base ID: airtable.com/api → click your base → copy appXXXXXXXX from the URL
+   5. Paste both below
+─────────────────────────────────────────────────── */
+const AT_TOKEN   = 'patE8SotynvUENM3h.de2cf9aa4f6b8abdee824210c4c2a1b8a2fbb0d53620fe39ae755eb99872ce1c';
+const AT_BASE_ID = 'appJauusbHlxTKZwM';
+const AT_READY   = !AT_TOKEN.startsWith('YOUR_');
 
-/* ═══════════════════════════════════════════
-   ▶ STATE
-═══════════════════════════════════════════ */
-let currentUser   = null;   // { name, email, picture }
-let cart          = [];
-let pendingKey    = null;   // menu item key waiting for sign-in
-let adminAuthed   = false;
+/* Refresh admin dashboard instantly if it is currently open */
+function refreshAdminIfOpen() {
+  if (adminAuthed && document.getElementById('adminOverlay').classList.contains('show')) {
+    renderAdminPanel();
+  }
+}
 
-/* ═══════════════════════════════════════════
-   ▶ HTML ESCAPE (security — always use this)
-═══════════════════════════════════════════ */
+
+const ADMIN_PASSWORD   = 'viper2016!';
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+
+/* ════════════════════════════════════════════════════
+   AIRTABLE API HELPERS
+════════════════════════════════════════════════════ */
+const AT_BASE = `https://api.airtable.com/v0/${AT_BASE_ID}`;
+const AT_HEADERS = () => ({
+  'Authorization': `Bearer ${AT_TOKEN}`,
+  'Content-Type': 'application/json'
+});
+
+async function atGet(table, params = '') {
+  if (!AT_READY) return null;
+  try {
+    const r = await fetch(`${AT_BASE}/${encodeURIComponent(table)}${params}`, { headers: AT_HEADERS() });
+    if (!r.ok) { return null; }
+    return await r.json();
+  } catch(e) {
+    // Silent fail — likely file:// protocol or network block
+    // Show warning in admin dashboard only once
+    if (!window._atWarnShown) {
+      window._atWarnShown = true;
+      const el = document.getElementById('atStatus');
+      if (el) el.innerHTML = '<span style="color:#FF6B9D;font-size:.8rem;">⚠️ Cannot reach Airtable — are you viewing this from a live website (not a local file)?</span>';
+    }
+    return null;
+  }
+}
+
+async function atCreate(table, fields) {
+  if (!AT_READY) return null;
+  try {
+    const r = await fetch(`${AT_BASE}/${encodeURIComponent(table)}`, {
+      method: 'POST',
+      headers: AT_HEADERS(),
+      body: JSON.stringify({ fields })
+    });
+    if (!r.ok) { return null; }
+    return await r.json();
+  } catch(e) { return null; }
+}
+
+async function atUpdate(table, recordId, fields) {
+  if (!AT_READY) return null;
+  try {
+    const r = await fetch(`${AT_BASE}/${encodeURIComponent(table)}/${recordId}`, {
+      method: 'PATCH',
+      headers: AT_HEADERS(),
+      body: JSON.stringify({ fields })
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch(e) { return null; }
+}
+
+async function atDelete(table, recordId) {
+  if (!AT_READY) return null;
+  try {
+    const r = await fetch(`${AT_BASE}/${encodeURIComponent(table)}/${recordId}`, {
+      method: 'DELETE',
+      headers: AT_HEADERS()
+    });
+    return r.ok;
+  } catch(e) { return null; }
+}
+
+async function atDeleteAll(table) {
+  if (!AT_READY) return;
+  const res = await atGet(table, '?pageSize=100');
+  if (!res || !res.records) return;
+  for (const rec of res.records) {
+    await atDelete(table, rec.id);
+  }
+}
+
+/* ════════════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════════════ */
+let currentUser  = null;
+let cart         = [];
+let pendingKey   = null;
+let adminAuthed  = false;
+let storeOpen    = false;
+let atOrders     = [];
+let atCustomers  = [];
+let storeRecordId = null;  // Airtable record ID for the store_status row
+let pollInterval  = null;  // polling interval reference
+
+/* ════════════════════════════════════════════════════
+   SECURITY — h() escapes all user-supplied strings
+════════════════════════════════════════════════════ */
 function h(s) {
   return String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
@@ -608,67 +718,168 @@ function h(s) {
     .replace(/'/g,'&#39;');
 }
 
-/* ═══════════════════════════════════════════
-   ▶ STORE OPEN / CLOSED
-═══════════════════════════════════════════ */
-function storeIsOpen() {
-  try { return localStorage.getItem(SK_STORE) === 'true'; }
-  catch(e) { return false; }
+/* ════════════════════════════════════════════════════
+   AIRTABLE SYNC — load + poll every 8 seconds
+════════════════════════════════════════════════════ */
+async function loadFromAirtable() {
+  if (!AT_READY) {
+    // localStorage fallback when not configured
+    try { storeOpen = localStorage.getItem('mm_store_open') === 'true'; } catch(e) {}
+    syncClosedBanner();
+    loadCommentsLocal();
+    return;
+  }
+
+  // Load store status
+  const storeData = await atGet('store_status', '?maxRecords=1');
+  if (storeData && storeData.records && storeData.records.length > 0) {
+    const rec = storeData.records[0];
+    storeRecordId = rec.id;
+    const wasOpen = storeOpen;
+    storeOpen = rec.fields.is_open === true;
+    syncClosedBanner();
+    if (storeOpen && !wasOpen && !currentUser) showSignIn(true);
+    if (!storeOpen && wasOpen) {
+      const overlay = document.getElementById('gateOverlay');
+      if (overlay.classList.contains('show')) showSignIn(false);
+    }
+  } else {
+    // No store_status row yet — create one
+    const created = await atCreate('store_status', { is_open: false });
+    if (created) storeRecordId = created.id;
+    storeOpen = false;
+    syncClosedBanner();
+  }
+
+  // Load orders
+  const ordersData = await atGet('orders', '?sort%5B0%5D%5Bfield%5D=created_time&sort%5B0%5D%5Bdirection%5D=desc&maxRecords=100');
+  if (ordersData && ordersData.records) {
+    atOrders = ordersData.records.map(r => {
+      try { return { _id: r.id, ...JSON.parse(r.fields.data || '{}') }; }
+      catch(e) { return null; }
+    }).filter(Boolean);
+  }
+
+  // Load customers
+  const custData = await atGet('customers', '?sort%5B0%5D%5Bfield%5D=last_seen&sort%5B0%5D%5Bdirection%5D=desc&maxRecords=100');
+  if (custData && custData.records) {
+    atCustomers = custData.records.map(r => ({
+      _id:          r.id,
+      email:        r.fields.email        || '',
+      name:         r.fields.name         || '',
+      picture:      r.fields.picture      || '',
+      registeredAt: r.fields.registered_at || '',
+      lastSeen:     r.fields.last_seen     || ''
+    }));
+  }
+
+  // Load comments
+  const commData = await atGet('comments', '?sort%5B0%5D%5Bfield%5D=created_time&sort%5B0%5D%5Bdirection%5D=desc&maxRecords=100');
+  if (commData && commData.records) {
+    const comments = commData.records.map(r => {
+      try { return JSON.parse(r.fields.data || '{}'); }
+      catch(e) { return null; }
+    }).filter(c => c && c.name);
+    pageComments = comments;
+    renderComments(pageComments.length ? pageComments : []);
+  } else {
+    renderComments([]);
+  }
+
+  // Refresh admin if open
+  if (adminAuthed && document.getElementById('adminOverlay').classList.contains('show')) {
+    renderAdminPanel();
+  }
 }
-function setStore(open) {
-  try { localStorage.setItem(SK_STORE, open ? 'true' : 'false'); }
-  catch(e) {}
+
+function startPolling() {
+  loadFromAirtable();
+  // Poll every 8 seconds to keep data fresh across all devices
+  pollInterval = setInterval(loadFromAirtable, 30000);
 }
+
+/* ════════════════════════════════════════════════════
+   STORE OPEN / CLOSED
+════════════════════════════════════════════════════ */
+function storeIsOpen() { return storeOpen; }
+
+async function setStore(open) {
+  storeOpen = open;
+  syncClosedBanner();
+  if (AT_READY) {
+    if (storeRecordId) {
+      await atUpdate('store_status', storeRecordId, { is_open: open });
+    } else {
+      const created = await atCreate('store_status', { is_open: open });
+      if (created) storeRecordId = created.id;
+    }
+  } else {
+    try { localStorage.setItem('mm_store_open', open ? 'true' : 'false'); } catch(e) {}
+  }
+}
+
 function syncClosedBanner() {
   const el = document.getElementById('closedBanner');
-  if (storeIsOpen()) el.classList.remove('show');
+  if (storeOpen) el.classList.remove('show');
   else el.classList.add('show');
 }
 
-// Runs on page load AND when admin opens the store.
-// Forces sign-in gate if store is open and visitor is not yet signed in.
 function checkEntryGate() {
-  if (storeIsOpen() && !currentUser) {
-    showSignIn(true); // pass true = gate cannot be dismissed
-  }
+  if (storeOpen && !currentUser) showSignIn(true);
 }
 
-/* ═══════════════════════════════════════════
-   ▶ CUSTOMER ACCOUNTS (Google Sign-In)
-   Customers sign in with Google — their
-   name, email & photo are saved and shown
-   in your admin dashboard automatically.
-═══════════════════════════════════════════ */
-
-// ── Paste your Google Client ID here ──────
-// Get one free at console.cloud.google.com
-// APIs & Services → Credentials → Create
-// OAuth 2.0 Client ID (Web application)
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
-
-function getCustomers() {
-  try { return JSON.parse(localStorage.getItem(SK_CUSTOMERS) || '[]'); }
-  catch(e) { return []; }
-}
-function upsertCustomer(rec) {
-  const all = getCustomers();
-  const idx = all.findIndex(c => c.email.toLowerCase() === rec.email.toLowerCase());
+/* ════════════════════════════════════════════════════
+   CUSTOMER ACCOUNTS
+════════════════════════════════════════════════════ */
+async function upsertCustomer(rec) {
   const now = new Date().toISOString();
-  if (idx >= 0) {
-    all[idx] = { ...all[idx], ...rec, lastSeen: now };
+  if (AT_READY) {
+    // Check if customer already exists
+    const existing = await atGet('customers', `?filterByFormula=email%3D"${encodeURIComponent(rec.email)}"&maxRecords=1`);
+    if (existing && existing.records && existing.records.length > 0) {
+      const id = existing.records[0].id;
+      await atUpdate('customers', id, {
+        name:      rec.name    || '',
+        picture:   rec.picture || '',
+        last_seen: now
+      });
+    } else {
+      await atCreate('customers', {
+        email:         rec.email   || '',
+        name:          rec.name    || '',
+        picture:       rec.picture || '',
+        registered_at: now,
+        last_seen:     now
+      });
+    }
+    // Update local mirror instantly and refresh admin
+    const existingIdx = atCustomers.findIndex(c => c.email && c.email.toLowerCase() === rec.email.toLowerCase());
+    if (existingIdx >= 0) {
+      atCustomers[existingIdx] = { ...atCustomers[existingIdx], ...rec, lastSeen: now };
+    } else {
+      atCustomers = [{ ...rec, registeredAt: now, lastSeen: now }, ...atCustomers];
+    }
+    refreshAdminIfOpen();
   } else {
-    all.unshift({ ...rec, registeredAt: now, lastSeen: now });
+    try {
+      const all = JSON.parse(localStorage.getItem('mm_customers_v1') || '[]');
+      const idx = all.findIndex(c => c.email && c.email.toLowerCase() === rec.email.toLowerCase());
+      if (idx >= 0) { all[idx] = { ...all[idx], ...rec, lastSeen: now }; }
+      else { all.unshift({ ...rec, registeredAt: now, lastSeen: now }); }
+      localStorage.setItem('mm_customers_v1', JSON.stringify(all));
+    } catch(e) {}
   }
-  try { localStorage.setItem(SK_CUSTOMERS, JSON.stringify(all)); } catch(e) {}
 }
 
-// ── Google library loaded ──────────────────
+/* ════════════════════════════════════════════════════
+   GOOGLE SIGN-IN
+════════════════════════════════════════════════════ */
 window.onGoogleLibraryLoad = function() {
   if (!GOOGLE_CLIENT_ID.startsWith('YOUR_')) {
     google.accounts.id.initialize({
-      client_id:            GOOGLE_CLIENT_ID,
-      callback:             handleGoogleCredential,
-      auto_select:          false,
+      client_id:             GOOGLE_CLIENT_ID,
+      callback:              handleGoogleCredential,
+      auto_select:           false,
       cancel_on_tap_outside: false
     });
   }
@@ -686,12 +897,14 @@ function handleGoogleCredential(response) {
     upsertCustomer({ name: currentUser.name, email: currentUser.email, picture: currentUser.picture });
     afterSignIn();
   } catch(e) {
-    console.error('Google credential error', e);
+    console.error('Google sign-in error', e);
     alert('Sign-in failed — please try again.');
   }
 }
 
-// ── Gate overlay helpers ───────────────────
+/* ════════════════════════════════════════════════════
+   GATE OVERLAY HELPERS
+════════════════════════════════════════════════════ */
 function showGateOverlay(content) {
   document.getElementById('gateContent').innerHTML = content;
   document.getElementById('gateOverlay').classList.add('show');
@@ -701,12 +914,13 @@ function hideGateOverlay() {
   document.getElementById('gateContent').innerHTML = '';
 }
 
-// ── Customer sign-in gate (Google only) ───
+/* ════════════════════════════════════════════════════
+   SIGN-IN GATE
+════════════════════════════════════════════════════ */
 function showSignIn(required) {
-  // Block entirely while store is closed — no sign-in possible
   if (!storeIsOpen()) {
     showGateOverlay(`
-      <div class="closed-box">
+      <div class="closed-box" onclick="event.stopPropagation()">
         <span class="big-emoji">🔒</span>
         <h2>We're Not Open Yet!</h2>
         <p>Our stall isn't accepting orders right now, but we're opening very soon!<br><br>
@@ -734,7 +948,7 @@ function showSignIn(required) {
        </div>`;
 
   showGateOverlay(`
-    <div class="signin-box">
+    <div class="signin-box" onclick="event.stopPropagation()">
       <span class="signin-emoji">🥞</span>
       <h2>Welcome to Maple &amp; Melt!</h2>
       <p>${useReal ? 'Sign in with your Google account to browse the menu and place your order!' : 'Enter your name and email to get started!'}</p>
@@ -753,29 +967,21 @@ function showSignIn(required) {
   }
 }
 
-// Form sign-in used when Google Client ID is not yet configured
 function completeSignIn() {
   const nameEl  = document.getElementById('custName');
   const emailEl = document.getElementById('custEmail');
   const errEl   = document.getElementById('custErr');
   if (!nameEl || !emailEl) return;
-
   const name  = nameEl.value.trim();
   const email = emailEl.value.trim();
-
   if (!name) {
     errEl.textContent = 'Please enter your name! 😊';
-    errEl.style.display = 'block';
-    nameEl.focus();
-    return;
+    errEl.style.display = 'block'; nameEl.focus(); return;
   }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     errEl.textContent = 'Please enter a valid email address! 📧';
-    errEl.style.display = 'block';
-    emailEl.focus();
-    return;
+    errEl.style.display = 'block'; emailEl.focus(); return;
   }
-
   currentUser = { name, email, picture: '' };
   upsertCustomer({ name, email, picture: '' });
   afterSignIn();
@@ -790,10 +996,10 @@ function afterSignIn() {
   if (currentUser.picture) { av.src = currentUser.picture; av.style.display = 'block'; }
   else { av.style.display = 'none'; }
   bar.classList.add('show');
+  // Refresh admin dashboard instantly so new sign-in appears right away
+  refreshAdminIfOpen();
   if (pendingKey) {
-    const k = pendingKey;
-    pendingKey = null;
-    openMenuModal(k);
+    const k = pendingKey; pendingKey = null; openMenuModal(k);
   }
 }
 
@@ -805,14 +1011,13 @@ function doSignOut() {
   try { google.accounts.id.disableAutoSelect(); } catch(e) {}
 }
 
-/* ═══════════════════════════════════════════
-   ▶ MENU CARD TAP — gate logic
-═══════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════
+   MENU CARD TAP
+════════════════════════════════════════════════════ */
 function handleMenuTap(key) {
-  // Gate 1: store must be open
   if (!storeIsOpen()) {
     showGateOverlay(`
-      <div class="closed-box">
+      <div class="closed-box" onclick="event.stopPropagation()">
         <span class="big-emoji">🔒</span>
         <h2>We're Not Open Yet!</h2>
         <p>Our stall isn't accepting orders right now, but we're opening very soon!<br><br>
@@ -821,19 +1026,13 @@ function handleMenuTap(key) {
       </div>`);
     return;
   }
-  // Gate 2: must be signed in
-  if (!currentUser) {
-    pendingKey = key;
-    showSignIn(false);
-    return;
-  }
-  // All clear — open the item modal
+  if (!currentUser) { pendingKey = key; showSignIn(false); return; }
   openMenuModal(key);
 }
 
-/* ═══════════════════════════════════════════
-   ▶ MENU DATA
-═══════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════
+   MENU DATA
+════════════════════════════════════════════════════ */
 const MENU = {
   pancakes: {
     emoji:'🥞', name:'Fluffy Pancakes',
@@ -847,7 +1046,7 @@ const MENU = {
     desc:'Rich, velvety cocoa topped with fluffy marshmallows',
     sizes:[{label:'Small',price:15},{label:'Medium',price:19},{label:'Large',price:23}],
     toppings:['☁️ Marshmallows','🍦 Whipped Cream','🍫 Extra Choc','🌶️ Spicy Kick','🍬 Caramel'],
-    flavours:['Classic Dark','Milk Choc','White Choc','Hazelnut','Mint Choc']
+    flavours:['Classic Dark','Milk Choc','White Choc','Hazelnut','Mint Choc','Cold Chocolate']
   },
   smoothie: {
     emoji:'🥤', name:'Fresh Smoothies',
@@ -879,120 +1078,118 @@ const MENU = {
   }
 };
 
-/* ═══════════════════════════════════════════
-   ▶ MENU MODAL
-═══════════════════════════════════════════ */
-let modalItem     = null;
-let modalSize     = 0;
-let modalToppings = [];
-let modalFlavour  = null;
+/* ════════════════════════════════════════════════════
+   MENU MODAL
+════════════════════════════════════════════════════ */
+let modalItem=null, modalSize=0, modalToppings=[], modalFlavour=null;
 
 function openMenuModal(key) {
-  modalItem     = MENU[key];
-  modalSize     = 0;
-  modalToppings = [];
-  modalFlavour  = null;
+  modalItem=MENU[key]; modalSize=0; modalToppings=[]; modalFlavour=null;
   renderMenuModal();
-  document.getElementById('menuModalOverlay').style.display = 'block';
-  const mb = document.getElementById('menuModal');
-  mb.style.display = 'block';
-  setTimeout(() => { mb.style.transform = 'translate(-50%,-50%) scale(1)'; }, 10);
+  document.getElementById('menuModalOverlay').style.display='block';
+  const mb=document.getElementById('menuModal');
+  mb.style.display='block';
+  setTimeout(()=>{ mb.style.transform='translate(-50%,-50%) scale(1)'; },10);
 }
-
 function closeMenuModal() {
-  const mb = document.getElementById('menuModal');
-  mb.style.transform = 'translate(-50%,-50%) scale(0.8)';
-  setTimeout(() => {
-    mb.style.display = 'none';
-    document.getElementById('menuModalOverlay').style.display = 'none';
-  }, 250);
+  const mb=document.getElementById('menuModal');
+  mb.style.transform='translate(-50%,-50%) scale(0.8)';
+  setTimeout(()=>{ mb.style.display='none'; document.getElementById('menuModalOverlay').style.display='none'; },250);
 }
-
 function renderMenuModal() {
-  const item  = modalItem;
-  const total = item.sizes[modalSize].price + modalToppings.length * 2;
-  document.getElementById('menuModalBody').innerHTML = `
+  const item=modalItem;
+  const total=item.sizes[modalSize].price+modalToppings.length*2;
+  document.getElementById('menuModalBody').innerHTML=`
     <span class="modal-emoji">${item.emoji}</span>
     <div class="modal-title">${h(item.name)}</div>
     <div class="modal-desc">${h(item.desc)}</div>
-
     <div class="option-group">
       <span class="option-label">📏 Size</span>
       <div class="option-chips">
-        ${item.sizes.map((s,i)=>`
-          <div class="chip${i===modalSize?' active':''}" onclick="setModalSize(${i})">
-            ${h(s.label)}<br><small>AED ${s.price}</small>
-          </div>`).join('')}
+        ${item.sizes.map((s,i)=>`<div class="chip${i===modalSize?' active':''}" onclick="setModalSize(${i})">${h(s.label)}<br><small>AED ${s.price}</small></div>`).join('')}
       </div>
     </div>
-
     <div class="option-group">
       <span class="option-label">🍓 Toppings <small style="color:#bbb;font-family:'Nunito',sans-serif">(+AED 2 each)</small></span>
       <div class="option-chips">
-        ${item.toppings.map((t,i)=>`
-          <div class="chip topping${modalToppings.includes(i)?' active':''}" onclick="toggleModalTopping(${i})">
-            ${h(t)}
-          </div>`).join('')}
+        ${item.toppings.map((t,i)=>`<div class="chip topping${modalToppings.includes(i)?' active':''}" onclick="toggleModalTopping(${i})">${h(t)}</div>`).join('')}
       </div>
     </div>
-
     <div class="option-group">
       <span class="option-label">✨ Flavour</span>
       <div class="option-chips">
-        ${item.flavours.map((f,i)=>`
-          <div class="chip flavour${modalFlavour===i?' active':''}" onclick="setModalFlavour(${i})">
-            ${h(f)}
-          </div>`).join('')}
+        ${item.flavours.map((f,i)=>`<div class="chip flavour${modalFlavour===i?' active':''}" onclick="setModalFlavour(${i})">${h(f)}</div>`).join('')}
       </div>
     </div>
-
     <div class="modal-price">Total: AED ${total}</div>
     <button class="order-btn" onclick="addToCart()">🛒 Add to Order!</button>
   `;
 }
+function setModalSize(i) { modalSize=i; renderMenuModal(); }
+function toggleModalTopping(i) { modalToppings=modalToppings.includes(i)?modalToppings.filter(x=>x!==i):[...modalToppings,i]; renderMenuModal(); }
+function setModalFlavour(i) { modalFlavour=(modalFlavour===i)?null:i; renderMenuModal(); }
 
-function setModalSize(i)    { modalSize = i; renderMenuModal(); }
-function toggleModalTopping(i) {
-  modalToppings = modalToppings.includes(i)
-    ? modalToppings.filter(x => x !== i)
-    : [...modalToppings, i];
-  renderMenuModal();
+/* ════════════════════════════════════════════════════
+   NEW CUSTOMER DISCOUNT (10% off — first 10 days)
+════════════════════════════════════════════════════ */
+const DISCOUNT_DAYS=10, DISCOUNT_PERCENT=10;
+
+function getCustomerRegisteredAt() {
+  if (!currentUser) return null;
+  const found = atCustomers.find(c => c.email && c.email.toLowerCase()===currentUser.email.toLowerCase());
+  if (found) return found.registeredAt || found.registered_at || null;
+  // fallback: localStorage
+  try {
+    const all = JSON.parse(localStorage.getItem('mm_customers_v1')||'[]');
+    const c = all.find(x=>x.email&&x.email.toLowerCase()===currentUser.email.toLowerCase());
+    return c ? (c.registeredAt||c.registered_at||null) : null;
+  } catch(e) { return null; }
 }
-function setModalFlavour(i) { modalFlavour = (modalFlavour === i) ? null : i; renderMenuModal(); }
+function isNewCustomer() {
+  const reg=getCustomerRegisteredAt();
+  if (!reg) return false;
+  return (Date.now()-new Date(reg).getTime())/(1000*60*60*24)<=DISCOUNT_DAYS;
+}
+function daysLeftOnDiscount() {
+  const reg=getCustomerRegisteredAt();
+  if (!reg) return 0;
+  return Math.max(0,Math.ceil(DISCOUNT_DAYS-(Date.now()-new Date(reg).getTime())/(1000*60*60*24)));
+}
+function applyDiscount(total) {
+  return isNewCustomer()?Math.round(total*(1-DISCOUNT_PERCENT/100)):total;
+}
 
-/* ═══════════════════════════════════════════
-   ▶ CART
-═══════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════
+   CART
+════════════════════════════════════════════════════ */
 function addToCart() {
-  const item    = modalItem;
-  const sz      = item.sizes[modalSize];
-  const price   = sz.price + modalToppings.length * 2;
-  const flavour = modalFlavour !== null ? item.flavours[modalFlavour] : null;
-  const toppings = modalToppings.map(i => item.toppings[i]);
-  cart.push({ id: Date.now(), emoji: item.emoji, name: item.name, size: sz.label, flavour, toppings, price });
+  const item=modalItem, sz=item.sizes[modalSize];
+  const price=sz.price+modalToppings.length*2;
+  const flavour=modalFlavour!==null?item.flavours[modalFlavour]:null;
+  const toppings=modalToppings.map(i=>item.toppings[i]);
+  const menuKey=Object.keys(MENU).find(k=>MENU[k].name===item.name)||'';
+  cart.push({id:Date.now(),menuKey,emoji:item.emoji,name:item.name,size:sz.label,flavour,toppings,price,qty:1});
   renderCart();
   closeMenuModal();
-  setTimeout(() => { launchConfetti(); openCart(); }, 300);
+  setTimeout(()=>{ launchConfetti(); openCart(); },300);
 }
 
 function renderCart() {
-  const badge   = document.getElementById('cartBadge');
-  const itemsEl = document.getElementById('cartItems');
-  const footer  = document.getElementById('cartFooter');
-  badge.textContent = cart.length;
+  const badge=document.getElementById('cartBadge');
+  const itemsEl=document.getElementById('cartItems');
+  const footer=document.getElementById('cartFooter');
+  badge.textContent=cart.reduce((s,it)=>s+(it.qty||1),0);
   if (!cart.length) {
-    itemsEl.innerHTML = `<div class="cart-empty"><span>🥞</span>Nothing here yet!<br><small style="font-family:'Nunito',sans-serif;font-size:.9rem;color:#ddd;">Tap a menu item to add to your order</small></div>`;
-    footer.style.display = 'none';
-    return;
+    itemsEl.innerHTML=`<div class="cart-empty"><span>🥞</span>Nothing here yet!<br><small style="font-family:'Nunito',sans-serif;font-size:.9rem;color:#ddd;">Tap a menu item to add to your order</small></div>`;
+    footer.style.display='none'; return;
   }
-  footer.style.display = 'block';
-  let grand = 0;
-  itemsEl.innerHTML = cart.map(it => {
-    grand += it.price;
-    const fTag = it.flavour ? `<span class="opt-tag flavour-tag">✨ ${h(it.flavour)}</span>` : '';
-    const tTags = it.toppings.length
-      ? it.toppings.map(t=>`<span class="opt-tag topping-tag">${h(t)}</span>`).join('')
-      : '<span class="opt-tag" style="background:#f5f5f5;color:#bbb;">No toppings</span>';
+  footer.style.display='block';
+  let grand=0;
+  itemsEl.innerHTML=cart.map(it=>{
+    const qty=it.qty||1;
+    grand+=it.price*qty;
+    const fTag=it.flavour?`<span class="opt-tag flavour-tag">✨ ${h(it.flavour)}</span>`:'';
+    const tTags=it.toppings.length?it.toppings.map(t=>`<span class="opt-tag topping-tag">${h(t)}</span>`).join(''):'<span class="opt-tag" style="background:#f5f5f5;color:#bbb;">No toppings</span>';
     return `
       <div class="cart-item">
         <span class="cart-item-emoji">${it.emoji}</span>
@@ -1003,85 +1200,135 @@ function renderCart() {
             ${fTag}${tTags}
           </div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
-          <span class="cart-item-price">AED ${it.price}</span>
-          <button class="cart-item-remove" onclick="removeFromCart(${it.id})">🗑️ Remove</button>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
+          <span class="cart-item-price">AED ${it.price*qty}</span>
+          <div class="qty-ctrl">
+            <button class="qty-btn" onclick="changeQty(${it.id},-1)">−</button>
+            <span class="qty-num">${qty}</span>
+            <button class="qty-btn" onclick="changeQty(${it.id},1)">＋</button>
+          </div>
         </div>
       </div>`;
   }).join('');
-  document.getElementById('cartTotal').textContent = 'AED ' + grand;
+  const discEl=document.getElementById('cartDiscount');
+  if (isNewCustomer()) {
+    const discounted=applyDiscount(grand);
+    const saved=grand-discounted;
+    document.getElementById('cartTotal').textContent='AED '+discounted;
+    if (discEl) { discEl.style.display='flex'; discEl.innerHTML=`<span style="color:#4ECDC4;font-size:.85rem;">🎉 10% new customer discount: -AED ${saved}</span>`; }
+  } else {
+    document.getElementById('cartTotal').textContent='AED '+grand;
+    if (discEl) discEl.style.display='none';
+  }
 }
 
-function removeFromCart(id) { cart = cart.filter(i => i.id !== id); renderCart(); }
-function clearCart() { if (confirm('Clear your entire order? 🗑️')) { cart = []; renderCart(); } }
-function openCart()  { document.getElementById('cartPanel').classList.add('open'); document.getElementById('cartOverlay').classList.add('open'); }
-function closeCart() { document.getElementById('cartPanel').classList.remove('open'); document.getElementById('cartOverlay').classList.remove('open'); }
-function toggleCart(){ document.getElementById('cartPanel').classList.contains('open') ? closeCart() : openCart(); }
+function changeQty(id,delta) {
+  cart=cart.map(i=>i.id===id?{...i,qty:(i.qty||1)+delta}:i).filter(i=>(i.qty||1)>0);
+  renderCart();
+}
+function removeFromCart(id) { cart=cart.filter(i=>i.id!==id); renderCart(); }
+function clearCart()  { if (confirm('Clear your entire order? 🗑️')) { cart=[]; renderCart(); } }
+function openCart()   { document.getElementById('cartPanel').classList.add('open'); document.getElementById('cartOverlay').classList.add('open'); }
+function closeCart()  { document.getElementById('cartPanel').classList.remove('open'); document.getElementById('cartOverlay').classList.remove('open'); }
+function toggleCart() { document.getElementById('cartPanel').classList.contains('open')?closeCart():openCart(); }
 
-function doCheckout() {
+async function doCheckout() {
   if (!cart.length) return;
-  if (!currentUser)  { pendingKey = null; showSignIn(false); return; }
+  if (!currentUser)   { pendingKey=null; showSignIn(false); return; }
   if (!storeIsOpen()) { alert('The store is currently closed. Please check back soon!'); return; }
 
-  const total = cart.reduce((s,i) => s + i.price, 0);
-  // Save order to localStorage
-  const order = {
-    id:        Date.now(),
-    timestamp: new Date().toISOString(),
-    user:      { name: currentUser.name, email: currentUser.email, picture: currentUser.picture },
-    items:     cart.map(i => ({ emoji:i.emoji, name:i.name, size:i.size, flavour:i.flavour, toppings:[...i.toppings], price:i.price })),
+  const subtotal=cart.reduce((s,i)=>s+i.price*(i.qty||1),0);
+  const newCust=isNewCustomer();
+  const total=newCust?applyDiscount(subtotal):subtotal;
+  const discountAmt=subtotal-total;
+
+  const order={
+    id:           Date.now(),
+    timestamp:    new Date().toISOString(),
+    user:         { name:currentUser.name, email:currentUser.email, picture:currentUser.picture },
+    items:        cart.flatMap(i=>Array(i.qty||1).fill({emoji:i.emoji,name:i.name,size:i.size,flavour:i.flavour,toppings:[...i.toppings],price:i.price})),
+    subtotal,
+    discount:     newCust?discountAmt:0,
+    discountNote: newCust?(DISCOUNT_PERCENT+'% new customer discount'):'',
     total
   };
-  saveOrder(order);
+  await saveOrder(order);
 
   launchConfetti();
-  const lines = cart.map(i => {
-    const f = i.flavour ? `\n   ✨ ${i.flavour}` : '';
-    const t = i.toppings.length ? `\n   🍓 ${i.toppings.join(', ')}` : '';
-    return `${i.emoji} ${i.name} — ${i.size}${f}${t} — AED ${i.price}`;
-  }).join('\n\n');
-  alert(`🎉 Order Placed!\n\n${lines}\n\n──────────────\n💰 Total: AED ${total}\n\n📍 Come pick it up at our stall in Nad Al Hamar!\nThank you, ${currentUser.name.split(' ')[0]}! We'll have it ready for you 🥞💛`);
+  const lineArr=cart.map(i=>{
+    const qty=i.qty||1;
+    const f=i.flavour?(' | \u2728 '+i.flavour):'';
+    const t=i.toppings.length?(' | '+i.toppings.join(', ')):'';
+    return i.emoji+' '+i.name+' x'+qty+' - '+i.size+f+t+' - AED '+(i.price*qty);
+  });
+  const discLine=newCust?('\n\n\uD83C\uDF89 New customer 10% off: -AED '+discountAmt+'\n\uD83D\uDCB0 Total: AED '+total):('\n\n\uD83D\uDCB0 Total: AED '+total);
+  alert('\uD83C\uDF89 Order Placed!\n\n'+lineArr.join('\n')+'\n\n---'+discLine+'\n\n\uD83D\uDCCD Come pick it up at our stall in Nad Al Hamar!\nThank you, '+currentUser.name.split(' ')[0]+'! We\'ll have it ready \uD83E\uDD5E');
 
-  cart = [];
-  renderCart();
-  closeCart();
-}
-
-/* ═══════════════════════════════════════════
-   ▶ ORDER STORAGE
-═══════════════════════════════════════════ */
-function getOrders() {
-  try { return JSON.parse(localStorage.getItem(SK_ORDERS) || '[]'); }
-  catch(e) { return []; }
-}
-function saveOrder(o) {
-  const all = getOrders();
-  all.unshift(o);
-  try { localStorage.setItem(SK_ORDERS, JSON.stringify(all)); }
-  catch(e) { console.error('Could not save order', e); }
-}
-function deleteAllOrders() {
-  try { localStorage.removeItem(SK_ORDERS); }
-  catch(e) {}
-}
-function deleteAllCustomers() {
-  try { localStorage.removeItem(SK_CUSTOMERS); }
-  catch(e) {}
+  cart=[]; renderCart(); closeCart();
 }
 
-/* ═══════════════════════════════════════════
-   ▶ ADMIN GATE
-═══════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════
+   ORDER STORAGE (Airtable)
+════════════════════════════════════════════════════ */
+async function saveOrder(order) {
+  // Add to local mirror instantly so admin sees it right away
+  atOrders = [order, ...atOrders];
+  refreshAdminIfOpen();
+
+  if (AT_READY) {
+    await atCreate('orders', {
+      data:            JSON.stringify(order),
+      customer_name:   order.user ? order.user.name  : '',
+      customer_email:  order.user ? order.user.email : '',
+      total:           order.total || 0
+    });
+  } else {
+    try {
+      const all=JSON.parse(localStorage.getItem('mm_orders_v2')||'[]');
+      all.unshift(order);
+      localStorage.setItem('mm_orders_v2',JSON.stringify(all));
+    } catch(e) {}
+  }
+}
+
+async function deleteAllOrders() {
+  if (AT_READY) {
+    await atDeleteAll('orders');
+    atOrders=[];
+  } else {
+    try { localStorage.removeItem('mm_orders_v2'); } catch(e) {}
+  }
+}
+
+async function deleteAllCustomers() {
+  if (AT_READY) {
+    await atDeleteAll('customers');
+    atCustomers=[];
+  } else {
+    try { localStorage.removeItem('mm_customers_v1'); } catch(e) {}
+  }
+}
+
+async function deleteAllComments() {
+  if (AT_READY) {
+    await atDeleteAll('comments');
+  } else {
+    try { localStorage.removeItem('mm_comments_v2'); } catch(e) {}
+  }
+}
+
+/* ════════════════════════════════════════════════════
+   ADMIN GATE
+════════════════════════════════════════════════════ */
 function openAdminGate() {
   if (adminAuthed) { renderAdminPanel(); return; }
-  document.getElementById('adminContent').innerHTML = `
+  document.getElementById('adminContent').innerHTML=`
     <div class="admin-login-wrap">
       <div class="admin-login-box">
         <div style="font-size:2.8rem;margin-bottom:10px;">🔐</div>
         <h2>Admin Access</h2>
         <p>Enter your admin password to continue</p>
-        <input class="admin-input" type="password" id="adminPwField"
-          placeholder="Password…"
+        <input class="admin-input" type="password" id="adminPwField" placeholder="Password…"
           onkeydown="if(event.key==='Enter')verifyAdminPw()"/>
         <button class="admin-login-btn" onclick="verifyAdminPw()">🚀 Open Dashboard</button>
         <div class="admin-error" id="adminErr">❌ Incorrect password. Try again.</div>
@@ -1090,65 +1337,58 @@ function openAdminGate() {
       </div>
     </div>`;
   document.getElementById('adminOverlay').classList.add('show');
-  setTimeout(() => { const f = document.getElementById('adminPwField'); if(f) f.focus(); }, 120);
+  setTimeout(()=>{ const f=document.getElementById('adminPwField'); if(f) f.focus(); },120);
 }
 
 function verifyAdminPw() {
-  const f = document.getElementById('adminPwField');
+  const f=document.getElementById('adminPwField');
   if (!f) return;
-  if (f.value === ADMIN_PASSWORD) {
-    adminAuthed = true;
-    renderAdminPanel();
-  } else {
-    const e = document.getElementById('adminErr');
-    if (e) e.style.display = 'block';
-    f.value = '';
-    f.focus();
+  if (f.value===ADMIN_PASSWORD) { adminAuthed=true; renderAdminPanel(); }
+  else {
+    const e=document.getElementById('adminErr');
+    if (e) e.style.display='block';
+    f.value=''; f.focus();
   }
 }
 
-function renderAdminPanel() {
-  const orders   = getOrders();
-  const customers = getCustomers();
-  // Revenue: sum every order's total (which was already computed as sum of item prices + toppings at checkout)
-  const revenue  = orders.reduce((s, o) => s + (Number(o.total) || 0), 0);
-  // Item count across all orders
-  const itemCount = orders.reduce((s, o) => s + ((o.items && o.items.length) || 0), 0);
-  const open     = storeIsOpen();
+/* ════════════════════════════════════════════════════
+   ADMIN DASHBOARD
+════════════════════════════════════════════════════ */
+async function renderAdminPanel() {
+  const orders    = atOrders;
+  const customers = atCustomers;
+  const revenue   = orders.reduce((s,o)=>s+(Number(o.total)||0),0);
+  const itemCount = orders.reduce((s,o)=>s+((o.items&&o.items.length)||0),0);
+  const open      = storeIsOpen();
 
-  const orderHTML = orders.length === 0
+  // Use in-memory pageComments for instant display (already synced from Airtable on load)
+  const adminComments = pageComments;
+
+  const syncStatus = AT_READY
+    ? '<span style="color:#4ECDC4;font-size:.75rem;">🟢 Airtable live sync ON</span>'
+    : '<span style="color:#FF6B9D;font-size:.75rem;">⚠️ Airtable not configured — paste your token &amp; base ID at top of script</span>';
+
+  const orderHTML = orders.length===0
     ? `<div class="no-orders-msg">📭 No orders yet. Open the store to start accepting orders!</div>`
-    : orders.map(o => {
-        const d = new Date(o.timestamp);
-        const ts = d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})
-                 + ' · ' + d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-        const name  = h(o.user ? o.user.name  : 'Unknown');
-        const email = h(o.user ? o.user.email : '');
-        const pic   = o.user && o.user.picture ? o.user.picture : '';
-        const picEl = pic
-          ? `<img class="order-pic" src="${h(pic)}" alt=""/>`
-          : `<div class="order-pic-ph">👤</div>`;
-        const itemRows = (o.items || []).map(it => {
-          const f = it.flavour ? ` · ✨ ${h(it.flavour)}` : '';
-          const t = it.toppings && it.toppings.length ? ` · ${it.toppings.map(x=>h(x)).join(', ')}` : '';
-          return `<div class="order-item-row">
-            ${it.emoji} <strong style="color:white;">${h(it.name)}</strong>
-            — ${h(it.size)}${f}${t}
-            <span class="order-item-price">AED ${it.price}</span>
-          </div>`;
+    : orders.map(o=>{
+        const d=new Date(o.timestamp||o.created_at||Date.now());
+        const ts=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' · '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+        const name =h(o.user?o.user.name:'Unknown');
+        const email=h(o.user?o.user.email:'');
+        const pic  =o.user&&o.user.picture?o.user.picture:'';
+        const picEl=pic?`<img class="order-pic" src="${h(pic)}" alt=""/>`:`<div class="order-pic-ph">👤</div>`;
+        const itemRows=(o.items||[]).map(it=>{
+          const f=it.flavour?` · ✨ ${h(it.flavour)}`:'';
+          const t=it.toppings&&it.toppings.length?` · ${it.toppings.map(x=>h(x)).join(', ')}`:'';
+          return `<div class="order-item-row">${it.emoji} <strong style="color:white;">${h(it.name)}</strong> — ${h(it.size)}${f}${t}<span class="order-item-price">AED ${it.price}</span></div>`;
         }).join('');
         return `
           <div class="order-card">
             <div class="order-card-head">
-              <div class="order-who">
-                ${picEl}
-                <div>
-                  <div class="order-name">${name}</div>
-                  <div class="order-email">${email}</div>
-                </div>
-              </div>
+              <div class="order-who">${picEl}<div><div class="order-name">${name}</div><div class="order-email">${email}</div></div></div>
               <div class="order-right">
-                <span class="order-total-pill">AED ${o.total || 0}</span>
+                <span class="order-total-pill">AED ${o.total||0}</span>
+                ${o.discount?`<div style="font-size:.75rem;color:#4ECDC4;margin-top:3px;">🎉 -AED ${o.discount} discount</div>`:''}
                 <div class="order-time">${ts}</div>
               </div>
             </div>
@@ -1156,99 +1396,78 @@ function renderAdminPanel() {
           </div>`;
       }).join('');
 
-  document.getElementById('adminContent').innerHTML = `
+  document.getElementById('adminContent').innerHTML=`
     <div class="admin-panel-wrap">
       <div class="admin-panel">
         <div class="admin-topbar">
           <div class="admin-topbar-left">
             <h1>🍳 Maple &amp; Melt — Dashboard</h1>
-            <p>Admin only · Visible to no one else</p>
+            <p>Admin only · ${syncStatus}</p>
+            <p id="atStatus"></p>
           </div>
           <button class="admin-close" onclick="closeAdmin()">✕</button>
         </div>
         <div class="admin-body">
 
-          <!-- Stats -->
           <div class="admin-stats">
-            <div class="stat-card">
-              <div class="stat-val">${orders.length}</div>
-              <div class="stat-label">Total Orders</div>
-            </div>
+            <div class="stat-card"><div class="stat-val">${orders.length}</div><div class="stat-label">Total Orders</div></div>
             <div class="stat-card" style="border-color:var(--yellow);background:rgba(255,211,61,.08);">
               <div class="stat-val" style="font-size:2.6rem;color:var(--yellow);">AED&nbsp;${revenue}</div>
               <div class="stat-label" style="color:var(--yellow);font-weight:700;">💰 Total Money Earned</div>
             </div>
+            <div class="stat-card"><div class="stat-val">${itemCount}</div><div class="stat-label">Items Sold</div></div>
+            <div class="stat-card"><div class="stat-val">${customers.length}</div><div class="stat-label">Registered Customers</div></div>
             <div class="stat-card">
-              <div class="stat-val">${itemCount}</div>
-              <div class="stat-label">Items Sold</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-val">${customers.length}</div>
-              <div class="stat-label">Registered Customers</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-val" style="color:${open?'#4ECDC4':'#FF6B9D'};font-size:1.6rem;">
-                ${open?'🟢 Open':'🔴 Closed'}
-              </div>
+              <div class="stat-val" style="color:${open?'#4ECDC4':'#FF6B9D'};font-size:1.6rem;">${open?'🟢 Open':'🔴 Closed'}</div>
               <div class="stat-label">Store Status</div>
             </div>
           </div>
 
-          <!-- Store control -->
           <div>
             <div class="admin-sh">🏪 Store Control</div>
             <div class="store-ctrl">
               <div class="store-ctrl-info">
-                <h3>${open ? '✅ Store is OPEN — customers can place orders' : '🔒 Store is CLOSED — ordering is blocked'}</h3>
-                <p>${open ? 'Tap "Close Store" to stop accepting orders.' : 'Tap "Open Store" to let customers order.'}</p>
+                <h3>${open?'✅ Store is OPEN — customers can place orders':'🔒 Store is CLOSED — ordering is blocked'}</h3>
+                <p>${open?'Tap "Close Store" to stop accepting orders.':'Tap "Open Store" to let customers order.'}</p>
               </div>
               <button class="toggle-store-btn ${open?'do-close':'do-open'}" onclick="adminFlipStore()">
-                ${open ? '🔒 Close Store' : '🟢 Open Store'}
+                ${open?'🔒 Close Store':'🟢 Open Store'}
               </button>
             </div>
           </div>
 
-          <!-- Customers -->
           <div>
             <div class="admin-sh">
               <span>👥 Registered Customers (${customers.length})</span>
-              ${customers.length ? `<button class="clear-orders-btn" onclick="adminClearCustomers()">🗑️ Delete All Customers</button>` : ''}
+              ${customers.length?`<button class="clear-orders-btn" onclick="adminClearCustomers()">🗑️ Delete All Customers</button>`:''}
             </div>
-            ${customers.length === 0
-              ? `<div class="no-customers-msg">📭 No customers yet — they'll appear here when they register.</div>`
+            ${customers.length===0
+              ? `<div class="no-customers-msg">📭 No customers yet.</div>`
               : `<div style="overflow-x:auto;border-radius:14px;border:1px solid rgba(255,255,255,.09);">
                   <table class="customers-table">
-                    <thead>
-                      <tr>
-                        <th></th>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Registered</th>
-                        <th>Last Seen</th>
-                        <th>Orders</th>
-                      </tr>
-                    </thead>
+                    <thead><tr><th></th><th>Name</th><th>Email</th><th>Status</th><th>Registered</th><th>Last Sign-in</th><th>Orders &amp; Spent</th></tr></thead>
                     <tbody>
-                      ${customers.map(c => {
-                        const initials = (c.name || '?')[0].toUpperCase();
-                        const regDate  = c.registeredAt
-                          ? new Date(c.registeredAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})
-                          : '—';
-                        const lastSeen = c.lastSeen
-                          ? new Date(c.lastSeen).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})
-                          : '—';
-                        const orderCount = orders.filter(o => o.user && o.user.email && o.user.email.toLowerCase() === c.email.toLowerCase()).length;
-                        const totalSpent = orders.filter(o => o.user && o.user.email && o.user.email.toLowerCase() === c.email.toLowerCase()).reduce((s,o)=>s+(Number(o.total)||0),0);
-                        const picEl = c.picture
-                          ? `<img src="${h(c.picture)}" style="width:30px;height:30px;border-radius:50%;border:2px solid var(--yellow);vertical-align:middle;" alt=""/>`
-                          : `<span class="cust-initials">${h(initials)}</span>`;
+                      ${customers.map(c=>{
+                        const initials=(c.name||'?')[0].toUpperCase();
+                        const regDate=c.registeredAt?new Date(c.registeredAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
+                        const lastSeen=c.lastSeen?new Date(c.lastSeen).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+new Date(c.lastSeen).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'—';
+                        const daysSince=c.registeredAt?(Date.now()-new Date(c.registeredAt).getTime())/(1000*60*60*24):999;
+                        const daysLeft=Math.max(0,Math.ceil(10-daysSince));
+                        const isNew=daysLeft>0;
+                        const statusBadge=isNew
+                          ?`<span style="background:rgba(78,205,196,.2);color:#4ECDC4;border:1px solid #4ECDC4;border-radius:20px;padding:2px 10px;font-size:.78rem;font-family:'Fredoka One',cursive;white-space:nowrap;">🆕 New · ${daysLeft}d left</span>`
+                          :`<span style="color:rgba(255,255,255,.3);font-size:.8rem;">Regular</span>`;
+                        const orderCount=orders.filter(o=>o.user&&o.user.email&&o.user.email.toLowerCase()===c.email.toLowerCase()).length;
+                        const totalSpent=orders.filter(o=>o.user&&o.user.email&&o.user.email.toLowerCase()===c.email.toLowerCase()).reduce((s,o)=>s+(Number(o.total)||0),0);
+                        const picEl=c.picture?`<img src="${h(c.picture)}" style="width:30px;height:30px;border-radius:50%;border:2px solid var(--yellow);vertical-align:middle;" alt=""/>` :`<span class="cust-initials">${h(initials)}</span>`;
                         return `<tr>
                           <td>${picEl}</td>
-                          <td style="color:white;font-weight:700;">${h(c.name || '—')}</td>
-                          <td>${h(c.email || '—')}</td>
+                          <td style="color:white;font-weight:700;">${h(c.name||'—')}</td>
+                          <td style="font-size:.82rem;">${h(c.email||'—')}</td>
+                          <td>${statusBadge}</td>
                           <td>${regDate}</td>
-                          <td>${lastSeen}</td>
-                          <td>${orderCount > 0 ? `<span style="color:var(--yellow);font-family:'Fredoka One',cursive;">${orderCount} order${orderCount!==1?'s':''} · AED ${totalSpent}</span>` : '<span style="color:rgba(255,255,255,.25);">None yet</span>'}</td>
+                          <td style="font-size:.82rem;">${lastSeen}</td>
+                          <td>${orderCount>0?`<span style="color:var(--yellow);font-family:'Fredoka One',cursive;">${orderCount} order${orderCount!==1?'s':''} · AED ${totalSpent}</span>`:'<span style="color:rgba(255,255,255,.25);">None yet</span>'}</td>
                         </tr>`;
                       }).join('')}
                     </tbody>
@@ -1256,13 +1475,35 @@ function renderAdminPanel() {
                 </div>`}
           </div>
 
-          <!-- Orders -->
           <div>
             <div class="admin-sh">
               <span>📋 All Orders (${orders.length})</span>
-              ${orders.length ? `<button class="clear-orders-btn" onclick="adminClearOrders()">🗑️ Delete All Orders</button>` : ''}
+              ${orders.length?`<button class="clear-orders-btn" onclick="adminClearOrders()">🗑️ Delete All Orders</button>`:''}
             </div>
             <div class="orders-list">${orderHTML}</div>
+          </div>
+
+          <div>
+            <div class="admin-sh">
+              <span>💬 Comments (${adminComments.length})</span>
+              ${adminComments.length ? `<button class="clear-orders-btn" onclick="adminClearComments()">🗑️ Delete All Comments</button>` : ''}
+            </div>
+            ${adminComments.length === 0
+              ? `<div class="no-orders-msg">📭 No comments yet.</div>`
+              : `<div style="display:flex;flex-direction:column;gap:12px;">
+                  ${adminComments.map(c => `
+                    <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:14px 18px;">
+                      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                        <div style="width:32px;height:32px;border-radius:50%;background:${h(c.color||'#FFD93D')};display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;font-size:.9rem;color:white;flex-shrink:0;">${h(c.initials||'?')}</div>
+                        <div>
+                          <div style="font-family:'Fredoka One',cursive;color:white;font-size:.95rem;">${h(c.name||'—')}${c.location ? ' — ' + h(c.location) : ''}</div>
+                          <div style="font-size:.75rem;color:rgba(255,255,255,.35);">${h(c.date||'')}</div>
+                        </div>
+                        <span style="margin-left:auto;font-size:1.3rem;">${h(c.emoji||'😊')}</span>
+                      </div>
+                      <p style="font-size:.88rem;color:rgba(255,255,255,.7);line-height:1.5;">${h(c.text||'')}</p>
+                    </div>`).join('')}
+                </div>`}
           </div>
 
         </div>
@@ -1271,55 +1512,42 @@ function renderAdminPanel() {
   document.getElementById('adminOverlay').classList.add('show');
 }
 
-function adminFlipStore() {
-  const opening = !storeIsOpen();
-  setStore(opening);
-  syncClosedBanner();
+async function adminFlipStore() {
+  await setStore(!storeIsOpen());
   renderAdminPanel();
-  // If store just opened and no customer is signed in yet on this device, nothing to do —
-  // but the entry gate will fire for all new visitors automatically via checkEntryGate().
 }
-function adminClearOrders() {
+async function adminClearOrders() {
   if (confirm('Permanently delete ALL orders? This cannot be undone.')) {
-    deleteAllOrders();
+    await deleteAllOrders();
     renderAdminPanel();
   }
 }
-function adminClearCustomers() {
+async function adminClearCustomers() {
   if (confirm('Permanently delete ALL customers? This cannot be undone.')) {
-    deleteAllCustomers();
+    await deleteAllCustomers();
     renderAdminPanel();
+  }
+}
+async function adminClearComments() {
+  if (confirm('Permanently delete ALL comments? This cannot be undone.')) {
+    await deleteAllComments();
+    renderComments([]);
   }
 }
 function closeAdmin() {
   document.getElementById('adminOverlay').classList.remove('show');
 }
 
-// Keyboard shortcut: Ctrl+Shift+A → open admin gate
 document.addEventListener('keydown', e => {
-  if (e.ctrlKey && e.shiftKey && e.key === 'A') { e.preventDefault(); openAdminGate(); }
+  if (e.ctrlKey && e.shiftKey && e.key==='A') { e.preventDefault(); openAdminGate(); }
 });
 
-/* ═══════════════════════════════════════════
-   ▶ COMMENTS
-═══════════════════════════════════════════ */
-const AVATAR_COLORS = ['#FFD93D','#4ECDC4','#FF6B9D','#C77DFF','#7BC67E','#FF6B35'];
-let pickedEmoji = '😍';
+/* ════════════════════════════════════════════════════
+   COMMENTS
+════════════════════════════════════════════════════ */
+const AVATAR_COLORS=['#FFD93D','#4ECDC4','#FF6B9D','#C77DFF','#7BC67E','#FF6B35'];
+let pickedEmoji='😍';
 
-const DEFAULT_COMMENTS = [
-  {name:'Sarah K.',location:'Dubai',text:'The pancakes here are absolutely incredible! Fluffy, golden, and that maple syrup… I dream about it! 🥞💛',emoji:'😍',color:'#FFD93D',initials:'S',date:'March 2026'},
-  {name:'Ahmed M.',location:'Abu Dhabi',text:'Best hot chocolate I have EVER had. The brothers who run this place are so friendly. This is now my favourite spot!',emoji:'🔥',color:'#4ECDC4',initials:'A',date:'March 2026'},
-  {name:'Lina T.',location:'Sharjah',text:'My kids absolutely love this place! The smoothies are fresh and the vibe is so cozy. A perfect family spot 🥤✨',emoji:'⭐',color:'#FF6B9D',initials:'L',date:'March 2026'}
-];
-
-function loadComments() {
-  try { const s = localStorage.getItem(SK_COMMENTS); return s ? JSON.parse(s) : null; }
-  catch(e) { return null; }
-}
-function saveComments(arr) {
-  try { localStorage.setItem(SK_COMMENTS, JSON.stringify(arr)); }
-  catch(e) {}
-}
 function commentCard(c) {
   return `
     <div class="comment-card">
@@ -1335,98 +1563,133 @@ function commentCard(c) {
     </div>`;
 }
 function renderComments(arr) {
-  document.getElementById('commentsList').innerHTML = arr.map(commentCard).join('');
+  const list=document.getElementById('commentsList');
+  if (!arr||!arr.length) {
+    list.innerHTML='<div style="text-align:center;color:#bbb;font-family:Nunito,sans-serif;padding:30px;font-size:1.1rem;">No comments yet — be the first! 🥞</div>';
+    return;
+  }
+  list.innerHTML=arr.map(commentCard).join('');
 }
 
-let allComments = loadComments() || DEFAULT_COMMENTS;
-renderComments(allComments);
+function loadCommentsLocal() {
+  try {
+    const s=localStorage.getItem('mm_comments_v2');
+    renderComments(s?JSON.parse(s):[]);
+  } catch(e) { renderComments([]); }
+}
 
-document.querySelectorAll('.emoji-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+// In-memory store of all comments currently shown on the page
+let pageComments = [];
+
+async function saveComment(comment) {
+  // Step 1 — Show instantly on the public page
+  pageComments = [comment, ...pageComments];
+  renderComments(pageComments);
+
+  // Step 2 — Refresh admin instantly (no waiting for Airtable)
+  refreshAdminIfOpen();
+
+  // Step 3 — Save to Airtable in the background
+  if (AT_READY) {
+    await atCreate('comments', {
+      data:         JSON.stringify(comment),
+      created_time: new Date().toISOString()
+    });
+  } else {
+    // localStorage fallback when Airtable not configured
+    try {
+      const all = JSON.parse(localStorage.getItem('mm_comments_v2') || '[]');
+      all.unshift(comment);
+      localStorage.setItem('mm_comments_v2', JSON.stringify(all));
+    } catch(e) {}
+  }
+}
+
+document.querySelectorAll('.emoji-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.emoji-btn').forEach(b=>b.classList.remove('selected'));
     btn.classList.add('selected');
-    pickedEmoji = btn.dataset.emoji;
+    pickedEmoji=btn.dataset.emoji;
   });
 });
 
-function submitComment() {
-  const name = document.getElementById('nameInput').value.trim();
-  const loc  = document.getElementById('locationInput').value.trim();
-  const text = document.getElementById('commentInput').value.trim();
-  if (!name)       { alert('Please enter your name! 😊'); return; }
+async function submitComment() {
+  const name=document.getElementById('nameInput').value.trim();
+  const loc =document.getElementById('locationInput').value.trim();
+  const text=document.getElementById('commentInput').value.trim();
+  if (!name)           { alert('Please enter your name! 😊'); return; }
   if (text.length < 3) { alert('Please write a comment (at least 3 characters)! 😊'); return; }
-  const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
-  const date  = new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
-  allComments = [{ name, location:loc, text, emoji:pickedEmoji, color, initials:name[0].toUpperCase(), date }, ...allComments];
-  saveComments(allComments);
-  renderComments(allComments);
-  document.getElementById('nameInput').value     = '';
-  document.getElementById('locationInput').value = '';
-  document.getElementById('commentInput').value  = '';
-  document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+  const color=AVATAR_COLORS[Math.floor(Math.random()*AVATAR_COLORS.length)];
+  const date=new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+  const comment={name,location:loc,text,emoji:pickedEmoji,color,initials:name[0].toUpperCase(),date,timestamp:Date.now()};
+  await saveComment(comment);
+  document.getElementById('nameInput').value='';
+  document.getElementById('locationInput').value='';
+  document.getElementById('commentInput').value='';
+  document.querySelectorAll('.emoji-btn').forEach(b=>b.classList.remove('selected'));
   document.querySelector('.emoji-btn[data-emoji="😍"]').classList.add('selected');
-  pickedEmoji = '😍';
+  pickedEmoji='😍';
   launchConfetti();
-  document.getElementById('commentsList').scrollIntoView({behavior:'smooth',block:'start'});
+  setTimeout(()=>{ document.getElementById('commentsList').scrollIntoView({behavior:'smooth',block:'start'}); },400);
 }
 
-/* ═══════════════════════════════════════════
-   ▶ CONFETTI
-═══════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════
+   CONFETTI
+════════════════════════════════════════════════════ */
 function launchConfetti() {
-  const el = document.getElementById('confetti');
-  el.style.display = 'block';
-  el.innerHTML = '';
-  const cols = ['#FFD93D','#FF6B35','#FF6B9D','#C77DFF','#4ECDC4','#7BC67E'];
-  for (let i = 0; i < 60; i++) {
-    const p = document.createElement('div');
-    p.className = 'confetti-piece';
-    p.style.left = Math.random()*100+'vw';
-    p.style.top  = '-20px';
-    p.style.background = cols[Math.floor(Math.random()*cols.length)];
-    p.style.animationDelay = Math.random()*0.6+'s';
-    p.style.transform = `rotate(${Math.random()*360}deg)`;
+  const el=document.getElementById('confetti');
+  el.style.display='block'; el.innerHTML='';
+  const cols=['#FFD93D','#FF6B35','#FF6B9D','#C77DFF','#4ECDC4','#7BC67E'];
+  for (let i=0;i<60;i++) {
+    const p=document.createElement('div');
+    p.className='confetti-piece';
+    p.style.left=Math.random()*100+'vw';
+    p.style.top='-20px';
+    p.style.background=cols[Math.floor(Math.random()*cols.length)];
+    p.style.animationDelay=Math.random()*0.6+'s';
+    p.style.transform=`rotate(${Math.random()*360}deg)`;
     el.appendChild(p);
   }
-  setTimeout(() => { el.style.display = 'none'; }, 2200);
+  setTimeout(()=>{ el.style.display='none'; },2200);
 }
 
-/* ═══════════════════════════════════════════
-   ▶ SCROLL REVEAL
-═══════════════════════════════════════════ */
-(function() {
-  const obs = new IntersectionObserver(entries => {
-    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-  }, { threshold: 0.1 });
-  document.querySelectorAll('.reveal').forEach(r => obs.observe(r));
+/* ════════════════════════════════════════════════════
+   SCROLL REVEAL
+════════════════════════════════════════════════════ */
+(function(){
+  const obs=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('visible'); });
+  },{threshold:0.1});
+  document.querySelectorAll('.reveal').forEach(r=>obs.observe(r));
 })();
 
-/* ═══════════════════════════════════════════
-   ▶ INIT
-═══════════════════════════════════════════ */
-/* ── ROTATING SLOGANS ── */
-(function() {
-  const slogans = [
+/* ════════════════════════════════════════════════════
+   ROTATING SLOGANS
+════════════════════════════════════════════════════ */
+(function(){
+  const slogans=[
     '✨ Drizzled with love, poured with passion ✨',
     '✨ Melt into every sip and bite ✨',
     '✨ Where warmth meets flavour ✨'
   ];
-  let idx = 0;
-  const el = document.getElementById('tagline');
-  setInterval(() => {
+  let idx=0;
+  const el=document.getElementById('tagline');
+  setInterval(()=>{
     el.classList.add('fade');
-    setTimeout(() => {
-      idx = (idx + 1) % slogans.length;
-      el.textContent = slogans[idx];
-      el.classList.remove('fade');
-    }, 500);
-  }, 3000);
+    setTimeout(()=>{ idx=(idx+1)%slogans.length; el.textContent=slogans[idx]; el.classList.remove('fade'); },500);
+  },3000);
 })();
 
-/* ── INIT ── */
+/* ════════════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════════════ */
+// Wipe old cached comments so stale data never shows
+try { localStorage.removeItem('mm_comments_v2'); } catch(e) {}
+
 syncClosedBanner();
 renderCart();
-checkEntryGate();
+renderComments([]);
+startPolling();  // loads all data from Airtable + polls every 8s
 </script>
 </body>
 </html>
