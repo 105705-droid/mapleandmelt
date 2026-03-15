@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Maple &amp; Melt 🥞</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    :root {
+      --yellow:#FFD93D; --orange:#FF6B35; --pink:#FF6B9D;
+      --purple:#C77DFF; --teal:#4ECDC4; --green:#7BC67E;
+      --brown:#8B4513; --cream:#FFF8F0;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'Nunito',sans-serif;background:var(--cream);overflow-x:hidden;
+      cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ctext y='28' font-size='28'%3E🍪%3C/text%3E%3C/svg%3E") 16 16,auto;}
+
+    /* ── BACKGROUND SHAPES ── */
+    .bg-shapes{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
+    .shape{position:absolute;border-radius:50%;opacity:.12;animation:floaty 8s ease-in-out infinite;}
+    .shape:nth-child(1){width:180px;height:180px;background:var(--yellow);top:5%;left:3%;animation-delay:0s;}
+    .shape:nth-child(2){width:120px;height:120px;background:var(--pink);top:20%;right:5%;animation-delay:1.5s;}
+    .shape:nth-child(3){width:200px;height:200px;background:var(--teal);bottom:20%;left:8%;animation-delay:3s;}
+    .shape:nth-child(4){width:100px;height:100px;background:var(--purple);bottom:10%;right:10%;animation-delay:4.5s;}
+    .shape:nth-child(5){width:150px;height:150px;background:var(--orange);top:50%;left:45%;animation-delay:2s;}
+    @keyframes floaty{0%,100%{transform:translateY(0) rotate(0deg);}50%{transform:translateY(-25px) rotate(10deg);}}
+    @keyframes bounce{0%,100%{transform:translateY(0);}50%{transform:translateY(-12px);}}
+    @keyframes popIn{from{transform:scale(0.8);opacity:0;}to{transform:scale(1);opacity:1;}}
+    @keyframes slideInLeft{from{transform:translateX(-20px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+    @keyframes confettiFall{0%{transform:translateY(-20px) rotate(0deg);opacity:1;}100%{transform:translateY(100vh) rotate(720deg);opacity:0;}}
+
+    /* ── STORE CLOSED BANNER ── */
+    .closed-banner{
+      display:none;background:linear-gradient(135deg,#c0392b,#e74c3c);
+      color:white;text-align:center;padding:14px 20px;
+      font-family:'Fredoka One',cursive;font-size:1.1rem;
+      position:sticky;top:0;z-index:600;
+      box-shadow:0 2px 12px rgba(0,0,0,0.2);
+    }
+    .closed-banner.show{display:block;}
+
+    /* ── USER BAR ── */
+    .user-bar{
+      display:none;align-items:center;justify-content:flex-end;gap:10px;
+      padding:8px 20px;background:white;border-bottom:2px solid #f0f0f0;
+      position:sticky;top:0;z-index:590;
+    }
+    .user-bar.show{display:flex;}
+    .user-avatar-small{width:30px;height:30px;border-radius:50%;border:2px solid var(--orange);object-fit:cover;}
+    .user-name-bar{font-family:'Fredoka One',cursive;color:var(--brown);font-size:0.95rem;}
+    .signout-btn{background:none;border:2px solid #eee;border-radius:20px;padding:4px 14px;
+      font-family:'Nunito',sans-serif;font-size:0.82rem;font-weight:700;color:#aaa;cursor:pointer;transition:all .2s;}
+    .signout-btn:hover{border-color:var(--pink);color:var(--pink);}
+
+    /* ── HEADER ── */
+    header{position:relative;z-index:10;text-align:center;padding:50px 20px 80px;
+      background:linear-gradient(135deg,#FFD93D 0%,#FF6B35 40%,#FF6B9D 70%,#C77DFF 100%);
+      clip-path:ellipse(100% 85% at 50% 15%);}
+    .logo-emojis{font-size:3.5rem;animation:bounce 1.5s ease-in-out infinite;display:block;margin-bottom:10px;}
+    header h1{font-family:'Fredoka One',cursive;font-size:clamp(3rem,10vw,6rem);color:white;
+      text-shadow:4px 4px 0 rgba(0,0,0,.15);letter-spacing:2px;line-height:1;}
+    header p.tagline{font-size:1.3rem;color:white;font-weight:800;margin-top:12px;opacity:.95;
+      text-shadow:1px 1px 0 rgba(0,0,0,.1);transition:opacity .5s ease;}
+    header p.tagline.fade{opacity:0;}
+
+    /* ── NAV ── */
+    nav{display:flex;justify-content:center;flex-wrap:wrap;gap:14px;padding:40px 20px 20px;position:relative;z-index:10;}
+    nav a{background:white;border:3px solid var(--orange);color:var(--orange);font-family:'Fredoka One',cursive;
+      font-size:1.1rem;padding:10px 24px;border-radius:50px;text-decoration:none;
+      box-shadow:4px 4px 0 var(--orange);transition:all .2s;}
+    nav a:hover{background:var(--orange);color:white;transform:translate(-2px,-2px);box-shadow:6px 6px 0 #cc4400;}
+
+    /* ── SECTIONS ── */
+    section{position:relative;z-index:5;max-width:1100px;margin:0 auto;padding:40px 20px;}
+    .section-title{font-family:'Fredoka One',cursive;font-size:2.4rem;text-align:center;margin-bottom:30px;}
+
+    /* ── MENU GRID ── */
+    .menu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px;}
+    .menu-card{background:white;border-radius:24px;padding:28px 20px;text-align:center;
+      border:3px solid transparent;box-shadow:0 8px 20px rgba(0,0,0,.08);
+      transition:transform .25s,box-shadow .25s;animation:popIn .5s ease both;cursor:pointer;}
+    .menu-card:nth-child(1){border-color:var(--yellow);animation-delay:.1s;}
+    .menu-card:nth-child(2){border-color:var(--pink);animation-delay:.2s;}
+    .menu-card:nth-child(3){border-color:var(--teal);animation-delay:.3s;}
+    .menu-card:nth-child(4){border-color:var(--purple);animation-delay:.4s;}
+    .menu-card:nth-child(5){border-color:var(--orange);animation-delay:.5s;}
+    .menu-card:nth-child(6){border-color:var(--green);animation-delay:.6s;}
+    .menu-card:hover{transform:translateY(-8px) rotate(-1deg) scale(1.02);box-shadow:0 16px 32px rgba(0,0,0,.13);}
+    .specialty-badge{display:inline-block;background:linear-gradient(135deg,var(--orange),var(--pink));
+      color:white;font-family:'Fredoka One',cursive;font-size:.8rem;padding:3px 12px;
+      border-radius:50px;margin-bottom:8px;letter-spacing:1px;}
+    .menu-emoji{font-size:3.5rem;display:block;margin-bottom:10px;}
+    .menu-card h3{font-family:'Fredoka One',cursive;font-size:1.5rem;color:var(--brown);margin-bottom:6px;}
+    .menu-card p{font-size:.95rem;color:#888;line-height:1.5;}
+    .price-tag{display:inline-block;margin-top:12px;background:var(--yellow);color:var(--brown);
+      font-family:'Fredoka One',cursive;font-size:1.1rem;padding:4px 16px;border-radius:50px;}
+
+    /* ── ABOUT ── */
+    #about{background:white;border-radius:32px;margin:20px auto;padding:50px 40px;
+      box-shadow:0 8px 30px rgba(0,0,0,.07);border:3px dashed var(--teal);text-align:center;}
+    #about p{font-size:1.15rem;color:#555;line-height:1.9;max-width:650px;margin:0 auto;}
+    #about strong{color:var(--orange);font-size:1.2rem;}
+
+    /* ── COMMENTS ── */
+    #comments{background:transparent;padding:40px 20px 60px;}
+    .comments-wrapper{background:white;border-radius:32px;padding:40px;
+      box-shadow:0 8px 30px rgba(0,0,0,.08);border:3px solid var(--purple);}
+    .comment-form{display:flex;flex-direction:column;gap:14px;margin-bottom:40px;}
+    .form-row{display:flex;gap:14px;flex-wrap:wrap;}
+    .comment-form input,.comment-form textarea{font-family:'Nunito',sans-serif;font-size:1rem;
+      padding:14px 18px;border:3px solid #eee;border-radius:16px;width:100%;
+      outline:none;transition:border-color .2s;background:#fafafa;color:#333;}
+    .form-row input{flex:1;min-width:140px;}
+    .comment-form input:focus,.comment-form textarea:focus{border-color:var(--purple);background:white;}
+    .comment-form textarea{resize:vertical;min-height:100px;}
+    .emoji-picker{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+    .emoji-picker span{font-size:.9rem;font-weight:700;color:#999;margin-right:4px;}
+    .emoji-btn{background:#f0f0f0;border:2px solid transparent;border-radius:12px;
+      font-size:1.5rem;padding:6px 10px;cursor:pointer;transition:all .2s;}
+    .emoji-btn:hover,.emoji-btn.selected{background:var(--yellow);border-color:var(--orange);transform:scale(1.2);}
+    .submit-btn{background:linear-gradient(135deg,var(--orange),var(--pink));color:white;
+      font-family:'Fredoka One',cursive;font-size:1.3rem;border:none;padding:14px 36px;
+      border-radius:50px;cursor:pointer;box-shadow:0 6px 0 #cc3366;transition:all .2s;align-self:flex-start;}
+    .submit-btn:hover{transform:translateY(-3px);box-shadow:0 9px 0 #cc3366;}
+    .submit-btn:active{transform:translateY(2px);box-shadow:0 3px 0 #cc3366;}
+    .comments-list{display:flex;flex-direction:column;gap:18px;}
+    .comment-card{background:var(--cream);border-radius:20px;padding:20px 24px;
+      border-left:5px solid var(--yellow);animation:slideInLeft .4s ease;}
+    .comment-card:nth-child(even){border-left-color:var(--pink);}
+    .comment-card:nth-child(3n){border-left-color:var(--teal);}
+    .comment-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+    .comment-avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;
+      justify-content:center;font-size:1.3rem;font-weight:700;flex-shrink:0;color:white;}
+    .comment-name{font-family:'Fredoka One',cursive;font-size:1.1rem;color:var(--brown);}
+    .comment-emoji-badge{margin-left:auto;font-size:1.4rem;}
+    .comment-text{font-size:1rem;color:#555;line-height:1.6;}
+
+    /* ── FOOTER ── */
+    footer{background:linear-gradient(135deg,var(--orange),var(--pink));color:white;text-align:center;
+      padding:70px 20px 40px;font-family:'Fredoka One',cursive;font-size:1.2rem;
+      clip-path:ellipse(100% 100% at 50% 100%);}
+    footer p{opacity:.9;margin-top:8px;font-family:'Nunito',sans-serif;font-size:.95rem;}
+
+    /* ── CONFETTI ── */
+    .confetti-burst{position:fixed;inset:0;pointer-events:none;z-index:9999;display:none;}
+    .confetti-piece{position:absolute;width:12px;height:12px;border-radius:3px;animation:confettiFall 1.2s ease-in forwards;}
+
+    /* ── SCROLL REVEAL ── */
+    .reveal{opacity:0;transform:translateY(30px);transition:all .6s ease;}
+    .reveal.visible{opacity:1;transform:translateY(0);}
+    /* Show content immediately if JS hasn't run yet after 1s */
+    @keyframes revealFallback{to{opacity:1;transform:none;}}
+    .reveal{animation:revealFallback 0s 1.5s forwards;}
+
+    /* ── MENU MODAL ── */
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3500;backdrop-filter:blur(4px);}
+    .modal-box{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.8);
+      z-index:3501;background:white;border-radius:32px;padding:36px;max-width:480px;width:90%;
+      box-shadow:0 20px 60px rgba(0,0,0,.2);transition:transform .3s ease;max-height:90vh;overflow-y:auto;}
+    .modal-close{position:absolute;top:16px;right:20px;background:none;border:none;
+      font-size:1.8rem;cursor:pointer;color:#aaa;line-height:1;}
+    .modal-close:hover{color:#333;}
+    .modal-emoji{font-size:4rem;display:block;text-align:center;margin-bottom:8px;}
+    .modal-title{font-family:'Fredoka One',cursive;font-size:2rem;color:var(--brown);text-align:center;margin-bottom:4px;}
+    .modal-desc{color:#999;text-align:center;font-size:.95rem;margin-bottom:24px;}
+    .option-group{margin-bottom:20px;}
+    .option-label{font-family:'Fredoka One',cursive;font-size:1.1rem;color:var(--orange);margin-bottom:10px;display:block;}
+    .option-chips{display:flex;flex-wrap:wrap;gap:10px;}
+    .chip{padding:8px 18px;border-radius:50px;border:2.5px solid #eee;background:#fafafa;
+      font-family:'Nunito',sans-serif;font-size:.95rem;font-weight:700;cursor:pointer;transition:all .2s;color:#555;}
+    .chip:hover{border-color:var(--orange);color:var(--orange);}
+    .chip.active{background:var(--orange);border-color:var(--orange);color:white;transform:scale(1.05);}
+    .chip.topping.active{background:var(--teal);border-color:var(--teal);}
+    .chip.flavour.active{background:var(--purple);border-color:var(--purple);}
+    .modal-price{font-family:'Fredoka One',cursive;font-size:1.8rem;color:var(--brown);text-align:center;margin:16px 0 8px;}
+    .order-btn{width:100%;background:linear-gradient(135deg,var(--orange),var(--pink));color:white;
+      font-family:'Fredoka One',cursive;font-size:1.3rem;border:none;padding:16px;border-radius:50px;
+      cursor:pointer;box-shadow:0 6px 0 #cc3366;transition:all .2s;margin-top:8px;}
+    .order-btn:hover{transform:translateY(-3px);box-shadow:0 9px 0 #cc3366;}
+    .order-btn:active{transform:translateY(2px);box-shadow:0 3px 0 #cc3366;}
+
+    /* ── CART ── */
+    .cart-fab{position:fixed;bottom:30px;right:30px;z-index:2000;
+      background:linear-gradient(135deg,var(--orange),var(--pink));color:white;border:none;
+      border-radius:50px;padding:16px 24px;font-family:'Fredoka One',cursive;font-size:1.2rem;
+      cursor:pointer;box-shadow:0 8px 24px rgba(255,107,53,.5);transition:all .2s;
+      display:flex;align-items:center;gap:10px;}
+    .cart-fab:hover{transform:translateY(-4px) scale(1.05);box-shadow:0 12px 30px rgba(255,107,53,.6);}
+    .cart-badge{background:white;color:var(--orange);border-radius:50%;width:26px;height:26px;
+      font-size:.9rem;display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;}
+    .cart-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2999;display:none;backdrop-filter:blur(3px);}
+    .cart-overlay.open{display:block;}
+    .cart-panel{position:fixed;top:0;right:-100vw;width:400px;max-width:95vw;height:100vh;background:white;
+      z-index:3000;box-shadow:-8px 0 40px rgba(0,0,0,.15);transition:right .35s cubic-bezier(.4,0,.2,1);
+      display:flex;flex-direction:column;border-radius:24px 0 0 24px;overflow:hidden;}
+    .cart-panel.open{right:0;}
+    .cart-header{background:linear-gradient(135deg,var(--orange),var(--pink));padding:24px;
+      display:flex;align-items:center;justify-content:space-between;}
+    .cart-header h2{font-family:'Fredoka One',cursive;font-size:1.6rem;color:white;}
+    .cart-close-btn{background:rgba(255,255,255,.25);border:none;border-radius:50%;width:38px;height:38px;
+      font-size:1.3rem;cursor:pointer;color:white;display:flex;align-items:center;justify-content:center;transition:background .2s;}
+    .cart-close-btn:hover{background:rgba(255,255,255,.4);}
+    .cart-items{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;}
+    .cart-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;
+      height:100%;color:#ccc;font-family:'Fredoka One',cursive;font-size:1.2rem;gap:12px;text-align:center;}
+    .cart-empty span{font-size:4rem;}
+    .cart-item{background:var(--cream);border-radius:18px;padding:16px;display:flex;
+      align-items:flex-start;gap:14px;border-left:4px solid var(--orange);animation:slideInLeft .3s ease;}
+    .cart-item-emoji{font-size:2.2rem;flex-shrink:0;}
+    .cart-item-info{flex:1;min-width:0;}
+    .cart-item-name{font-family:'Fredoka One',cursive;font-size:1.1rem;color:var(--brown);}
+    .cart-item-options{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;}
+    .opt-tag{display:inline-block;font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:20px;font-family:'Nunito',sans-serif;}
+    .size-tag{background:#FFF3CD;color:#8B4513;}
+    .flavour-tag{background:#EDE7FF;color:#6B3FA0;}
+    .topping-tag{background:#E0F7F6;color:#1A7A74;}
+    .cart-item-price{font-family:'Fredoka One',cursive;color:var(--orange);font-size:1.1rem;white-space:nowrap;}
+    .cart-item-remove{background:none;border:1px solid #eee;border-radius:20px;cursor:pointer;color:#ccc;
+      font-size:.8rem;padding:4px 10px;transition:all .2s;font-family:'Nunito',sans-serif;font-weight:700;flex-shrink:0;}
+    .cart-item-remove:hover{color:white;background:var(--pink);border-color:var(--pink);}
+    .qty-ctrl{display:flex;align-items:center;gap:0;border:2px solid var(--orange);border-radius:50px;overflow:hidden;}
+    .qty-btn{background:none;border:none;color:var(--orange);font-size:1.1rem;font-weight:700;
+      width:30px;height:28px;cursor:pointer;transition:background .15s;line-height:1;
+      display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;}
+    .qty-btn:hover{background:var(--orange);color:white;}
+    .qty-num{font-family:'Fredoka One',cursive;font-size:.95rem;color:var(--brown);
+      min-width:24px;text-align:center;line-height:28px;}
+    .cart-footer{padding:20px;border-top:2px solid #f0f0f0;background:white;}
+    .cart-total{display:flex;justify-content:space-between;align-items:center;
+      font-family:'Fredoka One',cursive;font-size:1.4rem;color:var(--brown);margin-bottom:14px;}
+    .cart-total span:last-child{color:var(--orange);}
+    .checkout-btn{width:100%;background:linear-gradient(135deg,var(--orange),var(--pink));color:white;
+      font-family:'Fredoka One',cursive;font-size:1.2rem;border:none;padding:16px;border-radius:50px;
+      cursor:pointer;box-shadow:0 5px 0 #cc3366;transition:all .2s;}
+    .checkout-btn:hover{transform:translateY(-2px);box-shadow:0 7px 0 #cc3366;}
+    .clear-btn{width:100%;background:none;color:#ccc;font-family:'Nunito',sans-serif;font-size:.9rem;
+      font-weight:700;border:none;padding:10px;cursor:pointer;margin-top:6px;transition:color .2s;}
+    .clear-btn:hover{color:var(--pink);}
+
+    /* ── FULL-SCREEN OVERLAYS ── */
+    .gate-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);
+      z-index:4000;backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;}
+    .gate-overlay.show{display:flex;}
+
+    /* ── SIGN-IN BOX (customers — Google) ── */
+    .signin-box{background:white;border-radius:32px;padding:44px 36px;max-width:420px;width:100%;
+      text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.3);animation:popIn .3s ease;}
+    .signin-emoji{font-size:3.5rem;display:block;margin-bottom:12px;}
+    .signin-box h2{font-family:'Fredoka One',cursive;font-size:1.9rem;color:var(--brown);margin-bottom:8px;}
+    .signin-box p{color:#888;font-size:1rem;line-height:1.6;margin-bottom:28px;}
+    .g-btn-wrap{display:flex;justify-content:center;}
+    .signin-field{width:100%;font-family:'Nunito',sans-serif;font-size:1rem;font-weight:600;
+      padding:13px 18px;border:2.5px solid #eee;border-radius:16px;outline:none;
+      transition:border-color .2s;background:#fafafa;color:#333;margin-bottom:10px;display:block;}
+    .signin-field:focus{border-color:var(--orange);background:white;}
+    .signin-field::placeholder{color:#bbb;font-weight:400;}
+    .signin-submit{width:100%;background:linear-gradient(135deg,var(--orange),var(--pink));color:white;
+      font-family:'Fredoka One',cursive;font-size:1.2rem;border:none;padding:14px;border-radius:50px;
+      cursor:pointer;box-shadow:0 5px 0 #cc3366;transition:all .2s;margin-top:4px;}
+    .signin-submit:hover{transform:translateY(-2px);box-shadow:0 7px 0 #cc3366;}
+    .signin-submit:active{transform:translateY(1px);box-shadow:0 3px 0 #cc3366;}
+    .signin-err{color:#e74c3c;font-size:.88rem;font-weight:700;margin-top:8px;
+      padding:8px 14px;background:#fff0f0;border-radius:10px;text-align:center;}
+
+    /* ── CLOSED BOX (shown instead of sign-in when store closed) ── */
+    .closed-box{background:white;border-radius:32px;padding:44px 36px;max-width:420px;width:100%;
+      text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.3);animation:popIn .3s ease;}
+    .closed-box .big-emoji{font-size:4rem;display:block;margin-bottom:14px;}
+    .closed-box h2{font-family:'Fredoka One',cursive;font-size:2rem;color:var(--brown);margin-bottom:10px;}
+    .closed-box p{color:#777;font-size:1.05rem;line-height:1.7;margin-bottom:20px;}
+    .closed-ok-btn{background:linear-gradient(135deg,var(--orange),var(--pink));color:white;
+      font-family:'Fredoka One',cursive;font-size:1.1rem;border:none;padding:12px 32px;
+      border-radius:50px;cursor:pointer;box-shadow:0 4px 0 #cc3366;transition:all .2s;}
+    .closed-ok-btn:hover{transform:translateY(-2px);box-shadow:0 6px 0 #cc3366;}
+
+    /* ── ADMIN ── */
+    .admin-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);
+      z-index:5000;backdrop-filter:blur(10px);overflow-y:auto;padding:20px;}
+    .admin-overlay.show{display:block;}
+    /* Admin login */
+    .admin-login-wrap{display:flex;align-items:center;justify-content:center;min-height:100%;padding:20px 0;}
+    .admin-login-box{background:#1a1a2e;border-radius:24px;padding:44px 36px;max-width:380px;width:100%;
+      text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.6);animation:popIn .3s ease;margin:auto;}
+    .admin-login-box h2{font-family:'Fredoka One',cursive;font-size:2rem;color:var(--yellow);margin-bottom:6px;}
+    .admin-login-box p{color:rgba(255,255,255,.4);font-size:.9rem;margin-bottom:28px;}
+    .admin-input{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);
+      border-radius:14px;padding:14px 18px;color:white;font-family:'Nunito',sans-serif;font-size:1rem;
+      outline:none;transition:border-color .2s;margin-bottom:14px;}
+    .admin-input:focus{border-color:var(--yellow);}
+    .admin-input::placeholder{color:rgba(255,255,255,.3);}
+    .admin-login-btn{width:100%;background:linear-gradient(135deg,var(--yellow),var(--orange));border:none;
+      border-radius:50px;padding:14px;font-family:'Fredoka One',cursive;font-size:1.2rem;color:white;
+      cursor:pointer;box-shadow:0 4px 0 #cc4400;transition:all .2s;}
+    .admin-login-btn:hover{transform:translateY(-2px);box-shadow:0 6px 0 #cc4400;}
+    .admin-error{color:#ff6b6b;font-size:.9rem;margin-top:8px;display:none;}
+    .admin-cancel-link{background:none;border:none;color:rgba(255,255,255,.3);font-size:.85rem;
+      cursor:pointer;margin-top:16px;font-family:'Nunito',sans-serif;display:inline-block;}
+    .admin-cancel-link:hover{color:rgba(255,255,255,.6);}
+    /* Admin panel */
+    .admin-panel-wrap{max-width:960px;margin:0 auto;padding:10px 0 40px;}
+    .admin-panel{background:#1a1a2e;border-radius:24px;overflow:hidden;
+      box-shadow:0 30px 80px rgba(0,0,0,.5);}
+    .admin-topbar{background:linear-gradient(135deg,#16213e,#0f3460);padding:24px 30px;
+      display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08);}
+    .admin-topbar-left h1{font-family:'Fredoka One',cursive;font-size:1.9rem;color:white;}
+    .admin-topbar-left p{font-size:.82rem;color:rgba(255,255,255,.4);margin-top:2px;}
+    .admin-close{background:rgba(255,255,255,.1);border:none;border-radius:50%;width:38px;height:38px;
+      cursor:pointer;color:white;font-size:1.2rem;display:flex;align-items:center;justify-content:center;transition:background .2s;}
+    .admin-close:hover{background:rgba(255,255,255,.22);}
+    .admin-body{padding:28px 30px;display:flex;flex-direction:column;gap:28px;}
+    /* Stats row */
+    .admin-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;}
+    .stat-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);
+      border-radius:16px;padding:20px;text-align:center;}
+    .stat-val{font-family:'Fredoka One',cursive;font-size:2.2rem;color:var(--yellow);}
+    .stat-label{font-size:.82rem;color:rgba(255,255,255,.45);margin-top:4px;}
+    /* Section heading */
+    .admin-sh{font-family:'Fredoka One',cursive;font-size:1.3rem;color:var(--yellow);margin-bottom:12px;
+      display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+    /* Store toggle */
+    .store-ctrl{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);
+      border-radius:16px;padding:20px 24px;display:flex;align-items:center;
+      justify-content:space-between;flex-wrap:wrap;gap:14px;}
+    .store-ctrl-info h3{font-family:'Fredoka One',cursive;font-size:1.15rem;color:white;}
+    .store-ctrl-info p{font-size:.84rem;color:rgba(255,255,255,.45);margin-top:4px;}
+    .toggle-store-btn{padding:12px 30px;border:none;border-radius:50px;font-family:'Fredoka One',cursive;
+      font-size:1.1rem;cursor:pointer;transition:all .2s;min-width:150px;}
+    .toggle-store-btn.do-open{background:linear-gradient(135deg,#4ECDC4,#36a89f);color:white;box-shadow:0 4px 0 #236b66;}
+    .toggle-store-btn.do-open:hover{transform:translateY(-2px);box-shadow:0 6px 0 #236b66;}
+    .toggle-store-btn.do-close{background:linear-gradient(135deg,#FF6B9D,#cc3366);color:white;box-shadow:0 4px 0 #991a40;}
+    .toggle-store-btn.do-close:hover{transform:translateY(-2px);box-shadow:0 6px 0 #991a40;}
+    /* Orders */
+    .orders-list{display:flex;flex-direction:column;gap:14px;}
+    .order-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);
+      border-radius:16px;padding:18px 20px;animation:slideInLeft .3s ease;}
+    .order-card-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;}
+    .order-who{display:flex;align-items:center;gap:10px;}
+    .order-pic{width:34px;height:34px;border-radius:50%;border:2px solid var(--yellow);object-fit:cover;flex-shrink:0;}
+    .order-pic-ph{width:34px;height:34px;border-radius:50%;border:2px solid var(--yellow);
+      background:rgba(255,211,61,.2);display:flex;align-items:center;justify-content:center;
+      font-size:.9rem;flex-shrink:0;}
+    .order-name{font-family:'Fredoka One',cursive;font-size:1rem;color:white;}
+    .order-email{font-size:.78rem;color:rgba(255,255,255,.38);}
+    .order-right{text-align:right;}
+    .order-total-pill{background:var(--yellow);color:var(--brown);font-family:'Fredoka One',cursive;
+      font-size:1rem;padding:4px 16px;border-radius:50px;display:inline-block;}
+    .order-time{font-size:.75rem;color:rgba(255,255,255,.3);margin-top:4px;}
+    .order-items-list{display:flex;flex-direction:column;gap:4px;}
+    .order-item-row{display:flex;align-items:center;gap:8px;font-size:.87rem;
+      color:rgba(255,255,255,.65);padding:5px 0;border-top:1px solid rgba(255,255,255,.05);}
+    .order-item-row:first-child{border-top:none;}
+    .order-item-price{margin-left:auto;color:var(--yellow);font-family:'Fredoka One',cursive;font-size:.9rem;white-space:nowrap;}
+    .no-orders-msg{text-align:center;color:rgba(255,255,255,.25);font-family:'Fredoka One',cursive;
+      font-size:1.1rem;padding:48px 20px;}
+    .clear-orders-btn{background:rgba(255,90,90,.12);border:1px solid rgba(255,90,90,.3);
+      color:rgba(255,120,120,.8);border-radius:10px;padding:8px 18px;font-family:'Nunito',sans-serif;
+      font-weight:700;font-size:.85rem;cursor:pointer;transition:all .2s;}
+    .clear-orders-btn:hover{background:rgba(255,90,90,.22);}
+    /* Customers table */
+    .customers-table{width:100%;border-collapse:collapse;}
+    .customers-table th{font-family:'Fredoka One',cursive;font-size:.85rem;color:var(--yellow);
+      text-align:left;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.1);letter-spacing:.5px;}
+    .customers-table td{font-size:.88rem;color:rgba(255,255,255,.75);padding:11px 14px;
+      border-bottom:1px solid rgba(255,255,255,.05);vertical-align:middle;}
+    .customers-table tr:last-child td{border-bottom:none;}
+    .customers-table tr:hover td{background:rgba(255,255,255,.03);}
+    .cust-initials{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--yellow),var(--orange));
+      display:inline-flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;
+      font-size:.9rem;color:white;flex-shrink:0;}
+    .no-customers-msg{text-align:center;color:rgba(255,255,255,.25);font-family:'Fredoka One',cursive;
+      font-size:1rem;padding:32px 20px;}
+
+    /* ── SECRET ADMIN TRIGGER ── */
+    #adminTrigger{position:fixed;bottom:0;left:0;width:30px;height:30px;
+      z-index:100;opacity:0;cursor:default;}
+  </style>
+</head>
+<body>
+
+<div class="bg-shapes">
+  <div class="shape"></div><div class="shape"></div><div class="shape"></div>
+  <div class="shape"></div><div class="shape"></div>
+</div>
+
+<!-- STORE CLOSED BANNER -->
+<div class="closed-banner" id="closedBanner">
+  🔒 We're not open for orders yet — but we're coming soon! Follow us to stay updated 🥞✨
+</div>
+
+<!-- USER BAR -->
+<div class="user-bar" id="userBar">
+  <img class="user-avatar-small" id="userAvatar" src="" alt="" style="display:none;"/>
+  <span class="user-name-bar" id="userNameBar"></span>
+  <button class="signout-btn" onclick="doSignOut()">Sign Out</button>
+</div>
+
+<!-- HEADER -->
+<header>
+  <span class="logo-emojis">🥞🍫🥤</span>
+  <h1>Maple &amp; Melt</h1>
+  <p class="tagline" id="tagline">✨ Drizzled with love, poured with passion ✨</p>
+</header>
+
+<!-- NAV -->
+<nav>
+  <a href="#menu">🍽️ Our Menu</a>
+  <a href="#about">💛 Our Story</a>
+  <a href="#comments">💬 Leave a Comment</a>
+  <a href="#findus">📍 Find Us</a>
+  <a href="#comingsoon">🌟 Coming Soon</a>
+</nav>
+
+<!-- MENU SECTION -->
+<section id="menu" class="reveal">
+  <h2 class="section-title" style="color:var(--orange);">🌟 Our Yummy Menu 🌟</h2>
+  <p style="text-align:center;color:#aaa;font-size:.95rem;margin-top:-18px;margin-bottom:24px;">👆 Tap any item to customise your order!</p>
+  <div class="menu-grid">
+    <div class="menu-card" onclick="handleMenuTap('pancakes')">
+      <span class="menu-emoji">🥞</span>
+      <h3>Fluffy Pancakes</h3>
+      <p>Golden, buttery stacks drizzled with real maple syrup</p>
+      <span class="price-tag">From AED 22</span>
+    </div>
+    <div class="menu-card" onclick="handleMenuTap('hotchoc')">
+      <span class="menu-emoji">🍫</span>
+      <h3>Hot Chocolate</h3>
+      <p>Rich, velvety cocoa topped with fluffy marshmallows</p>
+      <span class="price-tag">From AED 15</span>
+    </div>
+    <div class="menu-card" onclick="handleMenuTap('smoothie')">
+      <span class="menu-emoji">🥤</span>
+      <h3>Fresh Smoothies</h3>
+      <p>Blended with real fruits, packed with goodness</p>
+      <span class="price-tag">From AED 18</span>
+    </div>
+    <div class="menu-card" onclick="handleMenuTap('drinks')">
+      <span class="menu-emoji">🧃</span>
+      <h3>Special Drinks</h3>
+      <p>Lemonades, slushies, and our secret house blends!</p>
+      <span class="price-tag">From AED 13</span>
+    </div>
+    <div class="menu-card" onclick="handleMenuTap('waffles')">
+      <span class="specialty-badge">⭐ SPECIALTY</span>
+      <span class="menu-emoji">🧇</span>
+      <h3>Crispy Waffles</h3>
+      <p>Golden, crispy waffles topped with syrup, cream &amp; fresh fruits</p>
+      <span class="price-tag">From AED 25</span>
+    </div>
+    <div class="menu-card" onclick="handleMenuTap('cookies')">
+      <span class="specialty-badge">⭐ SPECIALTY</span>
+      <span class="menu-emoji">🍪</span>
+      <h3>Fresh Cookies</h3>
+      <p>Warm, freshly baked cookies — choc chip, double choc, peanut butter &amp; kinder!</p>
+      <span class="price-tag">From AED 8</span>
+    </div>
+  </div>
+</section>
+
+<!-- MENU ITEM MODAL -->
+<div class="modal-overlay" id="menuModalOverlay" onclick="closeMenuModal()"></div>
+<div class="modal-box" id="menuModal">
+  <button class="modal-close" onclick="closeMenuModal()">✕</button>
+  <div id="menuModalBody"></div>
+</div>
+
+<!-- SIGN-IN / STORE CLOSED GATE OVERLAY -->
+<div class="gate-overlay" id="gateOverlay">
+  <div id="gateContent"></div>
+</div>
+
+<!-- ABOUT -->
+<section id="about" class="reveal">
+  <h2 class="section-title" style="color:var(--teal);">💛 Our Story</h2>
+  <p>
+    Welcome to <strong>Maple &amp; Melt</strong> — a food stall born from brotherhood and a love for amazing food! 🥞<br><br>
+    We're brothers who dreamed of a place where every sip warms your soul and every bite brings a smile. From our fluffy pancakes and crispy waffles to our rich hot chocolates and fresh smoothies — everything is made with <strong>love, care, and a whole lot of flavour.</strong><br><br>
+    Find us at <strong>📍 Nad Al Hamar, Dubai</strong> — come visit, grab a bite, and feel at home. 🏡✨
+  </p>
+</section>
+
+<!-- FIND US -->
+<section id="findus" class="reveal" style="max-width:1100px;margin:0 auto;padding:40px 20px;">
+  <h2 class="section-title" style="color:var(--teal);">📍 Find Us</h2>
+  <p style="text-align:center;color:#888;margin-bottom:24px;font-size:1.05rem;">
+    We're located in <strong style="color:var(--orange);">Nad Al Hamar, Dubai</strong> — come visit us! 🥞
+  </p>
+  <div style="border-radius:24px;overflow:hidden;border:4px solid var(--teal);box-shadow:0 10px 30px rgba(0,0,0,.1);">
+    <iframe src="https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d1804.9473807891231!2d55.390807973755905!3d25.206771276731175!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1sen!2sae!4v1773427308811!5m2!1sen!2sae"
+      width="100%" height="420" style="border:0;display:block;" allowfullscreen="" loading="lazy"
+      referrerpolicy="no-referrer-when-downgrade"></iframe>
+  </div>
+</section>
+
+<!-- COMMENTS -->
+<section id="comments" class="reveal">
+  <div class="comments-wrapper">
+    <h2 class="section-title" style="color:var(--purple);">💬 Leave Us a Comment!</h2>
+    <div class="comment-form">
+      <div class="form-row">
+        <input type="text" id="nameInput" placeholder="Your name 😊" maxlength="30"/>
+        <input type="text" id="locationInput" placeholder="Your city 📍" maxlength="30"/>
+      </div>
+      <textarea id="commentInput" placeholder="Tell us what you think! We love hearing from you 💛"></textarea>
+      <div class="emoji-picker">
+        <span>Pick a vibe:</span>
+        <button class="emoji-btn selected" data-emoji="😍">😍</button>
+        <button class="emoji-btn" data-emoji="🥞">🥞</button>
+        <button class="emoji-btn" data-emoji="🍫">🍫</button>
+        <button class="emoji-btn" data-emoji="🥤">🥤</button>
+        <button class="emoji-btn" data-emoji="⭐">⭐</button>
+        <button class="emoji-btn" data-emoji="🔥">🔥</button>
+        <button class="emoji-btn" data-emoji="💛">💛</button>
+      </div>
+      <button class="submit-btn" onclick="submitComment()">Post Comment 🚀</button>
+    </div>
+    <div class="comments-list" id="commentsList"></div>
+  </div>
+</section>
+
+<!-- COMING SOON -->
+<section id="comingsoon" class="reveal" style="max-width:1100px;margin:0 auto;padding:40px 20px;">
+  <div style="background:linear-gradient(135deg,#FFD93D,#FF6B35,#FF6B9D);border-radius:32px;padding:50px 30px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.12);">
+    <div style="font-size:3.5rem;margin-bottom:12px;animation:bounce 1.5s ease-in-out infinite;">🚀</div>
+    <h2 style="font-family:'Fredoka One',cursive;font-size:2.8rem;color:white;text-shadow:3px 3px 0 rgba(0,0,0,.1);margin-bottom:12px;">Coming Soon!</h2>
+    <p style="color:white;font-size:1.2rem;font-weight:700;opacity:.95;max-width:500px;margin:0 auto 24px;">We're cooking up something exciting at Maple &amp; Melt! Big things are on the way — stay tuned! 🥞🍪🧇</p>
+    <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:16px;margin-bottom:28px;">
+      <div style="background:rgba(255,255,255,.25);border-radius:20px;padding:16px 24px;backdrop-filter:blur(4px);">
+        <div style="font-family:'Fredoka One',cursive;font-size:2rem;color:white;">🎉</div>
+        <div style="font-family:'Fredoka One',cursive;color:white;font-size:1rem;">New Menu Items</div>
+      </div>
+      <div style="background:rgba(255,255,255,.25);border-radius:20px;padding:16px 24px;backdrop-filter:blur(4px);">
+        <div style="font-family:'Fredoka One',cursive;font-size:2rem;color:white;">📍</div>
+        <div style="font-family:'Fredoka One',cursive;color:white;font-size:1rem;">New Location</div>
+      </div>
+      <div style="background:rgba(255,255,255,.25);border-radius:20px;padding:16px 24px;backdrop-filter:blur(4px);">
+        <div style="font-family:'Fredoka One',cursive;font-size:2rem;color:white;">🎁</div>
+        <div style="font-family:'Fredoka One',cursive;color:white;font-size:1rem;">Special Offers</div>
+      </div>
+    </div>
+    <p style="color:white;opacity:.85;font-size:1rem;">📍 Find us at <strong>Nad Al Hamar, Dubai</strong> — Opening date coming soon!</p>
+  </div>
+</section>
+
+<!-- CART FAB -->
+<button class="cart-fab" onclick="toggleCart()">
+  🛒 My Order <span class="cart-badge" id="cartBadge">0</span>
+</button>
+
+<!-- CART -->
+<div class="cart-overlay" id="cartOverlay" onclick="closeCart()"></div>
+<div class="cart-panel" id="cartPanel">
+  <div class="cart-header">
+    <h2>🛒 Your Order</h2>
+    <button class="cart-close-btn" onclick="closeCart()">✕</button>
+  </div>
+  <div class="cart-items" id="cartItems">
+    <div class="cart-empty">
+      <span>🥞</span>Nothing here yet!<br>
+      <small style="font-family:'Nunito',sans-serif;font-size:.9rem;color:#ddd;">Tap a menu item to add to your order</small>
+    </div>
+  </div>
+  <div class="cart-footer" id="cartFooter" style="display:none;">
+    <div class="cart-total"><span>Total:</span><span id="cartTotal">AED 0</span></div>
+    <div id="cartDiscount" style="display:none;margin-bottom:8px;"></div>
+    <button class="checkout-btn" onclick="doCheckout()">✅ Place Order at Stall!</button>
+    <button class="clear-btn" onclick="clearCart()">🗑️ Clear Order</button>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  🥞 Maple &amp; Melt 🍫
+  <p>Made with love by brothers, for everyone 💛 | Open Daily 8am – 10pm</p>
+  <p style="margin-top:6px;">📍 Nad Al Hamar, Dubai</p>
+</footer>
+
+<!-- INVISIBLE ADMIN TRIGGER (bottom-left corner, 30x30px, fully invisible) -->
+<div id="adminTrigger" onclick="openAdminGate()"></div>
+
+<!-- ADMIN OVERLAY -->
+<div class="admin-overlay" id="adminOverlay">
+  <div id="adminContent"></div>
+</div>
+
+<!-- CONFETTI -->
+<div class="confetti-burst" id="confetti"></div>
+
+<script>
+/* ════════════════════════════════════════════════════
+   MAPLE & MELT — JSONBin Edition
+   Everything saves to JSONBin.io automatically.
+   Works across all devices. No tables needed.
+════════════════════════════════════════════════════ */
+
+/* ── YOUR CONFIG ────────────────────────────────── */
+const JB_KEY      = '$2a$10$PJq.dKAkFB.jiB79OcoYvObA8eFtiasGGjOmZFOpDVmHtElPTld.y';
+const ADMIN_PASSWORD   = 'viper2016!';
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+
+/* ════════════════════════════════════════════════════
+   JSONBIN HELPERS
+   All data lives in ONE bin as a single JSON object:
+   { storeOpen, orders[], customers[], comments[] }
+════════════════════════════════════════════════════ */
+const JB_BASE = 'https://api.jsonbin.io/v3/b';
+const JB_HEADERS = {
+  'Content-Type': 'application/json',
+  'X-Master-Key': JB_KEY
+};
+
+let   JB_BIN_ID = null;  // set after first load
+const JB_ID_KEY = 'mm_jb_bin_id';  // localStorage key to remember bin ID
+
+/* Default empty data structure */
+function emptyData() {
+  return { storeOpen: false, orders: [], customers: [], comments: [] };
+}
+
+/* Read the bin — returns full data object */
+async function jbRead() {
+  const id = JB_BIN_ID || localStorage.getItem(JB_ID_KEY);
+  if (!id) return null;
+  try {
+    const r = await fetch(`${JB_BASE}/${id}/latest`, { headers: JB_HEADERS });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j.record || null;
+  } catch(e) { return null; }
+}
+
+/* Write the full data object to the bin */
+let _jbWriting = false;  // lock to prevent poll overwriting a write
+let _jbSkipNextPoll = false;
+
+async function jbWrite(data) {
+  const id = JB_BIN_ID || localStorage.getItem(JB_ID_KEY);
+  if (!id) return false;
+  _jbWriting = true;
+  _jbSkipNextPoll = true;
+  try {
+    const r = await fetch(`${JB_BASE}/${id}`, {
+      method:  'PUT',
+      headers: JB_HEADERS,
+      body:    JSON.stringify(data)
+    });
+    _jbWriting = false;
+    return r.ok;
+  } catch(e) { _jbWriting = false; return false; }
+}
+
+/* Create a new bin on first run */
+async function jbCreate() {
+  try {
+    const r = await fetch(JB_BASE, {
+      method:  'POST',
+      headers: { ...JB_HEADERS, 'X-Bin-Name': 'maple-and-melt', 'X-Bin-Private': 'false' },
+      body:    JSON.stringify(emptyData())
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j.metadata ? j.metadata.id : null;
+  } catch(e) { return null; }
+}
+
+/* ── FIXED BIN ID ─────────────────────────────────────────
+   After your website runs for the first time, paste the
+   bin ID shown in your browser console here so ALL devices
+   share the same data. Leave blank on first run.
+   Example: const FIXED_BIN_ID = '64abc123def456';
+─────────────────────────────────────────────────────── */
+const FIXED_BIN_ID = '';  // ← paste your bin ID here after first run
+
+/* Load or create the bin on startup */
+async function jbInit() {
+  // If a fixed bin ID is hardcoded, always use that — all devices share it
+  if (FIXED_BIN_ID) {
+    JB_BIN_ID = FIXED_BIN_ID;
+    localStorage.setItem(JB_ID_KEY, FIXED_BIN_ID);
+    return true;
+  }
+
+  // Try to find existing bin by searching JSONBin
+  let id = localStorage.getItem(JB_ID_KEY);
+
+  if (!id) {
+    // First run on this device — try to find our bin by name
+    try {
+      const r = await fetch('https://api.jsonbin.io/v3/b?meta=false', {
+        headers: { ...JB_HEADERS, 'X-Bin-Name': 'maple-and-melt' }
+      });
+      if (r.ok) {
+        const list = await r.json();
+        if (Array.isArray(list) && list.length > 0) {
+          // Found existing bin — use it
+          id = list[0].record ? list[0].record.id : list[0].id;
+        }
+      }
+    } catch(e) {}
+  }
+
+  if (!id) {
+    // Still no bin — create a new one
+    showLoadingBanner('Setting up your store...');
+    id = await jbCreate();
+    if (id) {
+      console.log('%c🎉 Bin created! Copy this ID into FIXED_BIN_ID in your HTML: ' + id, 'background:#4ECDC4;color:white;padding:4px 8px;border-radius:4px;font-size:14px;');
+    } else {
+      showLoadingBanner('');
+      return false;
+    }
+  }
+
+  if (id) {
+    localStorage.setItem(JB_ID_KEY, id);
+    JB_BIN_ID = id;
+    return true;
+  }
+  return false;
+}
+
+function showLoadingBanner(msg) {
+  const el = document.getElementById('closedBanner');
+  if (!el) return;
+  if (msg) { el.textContent = '⏳ ' + msg; el.classList.add('show'); }
+  else { syncClosedBanner(); }
+}
+
+/* ════════════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════════════ */
+let currentUser  = null;
+let cart         = [];
+let pendingKey   = null;
+let adminAuthed  = false;
+let storeOpen    = false;
+let atOrders     = [];
+let atCustomers  = [];
+let pageComments = [];
+let pollInterval = null;
+
+/* ════════════════════════════════════════════════════
+   SECURITY — escape all user data before rendering
+════════════════════════════════════════════════════ */
+function h(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+/* ════════════════════════════════════════════════════
+   LOAD & SYNC
+════════════════════════════════════════════════════ */
+async function loadData() {
+  // Skip this poll if we just wrote data (prevents overwriting our own changes)
+  if (_jbWriting || _jbSkipNextPoll) {
+    _jbSkipNextPoll = false;
+    return;
+  }
+  const data = await jbRead();
+  if (!data) return;
+
+  const wasOpen = storeOpen;
+  storeOpen    = data.storeOpen === true;
+  atOrders     = Array.isArray(data.orders)    ? data.orders    : [];
+  atCustomers  = Array.isArray(data.customers) ? data.customers : [];
+  pageComments = Array.isArray(data.comments)  ? data.comments  : [];
+
+  syncClosedBanner();
+  renderComments(pageComments);
+
+  if (storeOpen && !wasOpen && !currentUser) showSignIn(true);
+  if (!storeOpen && wasOpen) {
+    const ov = document.getElementById('gateOverlay');
+    if (ov && ov.classList.contains('show')) showSignIn(false);
+  }
+
+  refreshAdminIfOpen();
+}
+
+function startPolling() {
+  loadData();
+  pollInterval = setInterval(loadData, 10000);  // refresh every 10s
+}
+
+/* ════════════════════════════════════════════════════
+   HELPERS — read/modify/write pattern
+════════════════════════════════════════════════════ */
+async function withData(fn) {
+  // Read latest, apply fn, write back
+  let data = await jbRead();
+  if (!data) data = emptyData();
+  const updated = fn(data);
+  await jbWrite(updated || data);
+}
+
+function refreshAdminIfOpen() {
+  if (adminAuthed && document.getElementById('adminOverlay').classList.contains('show')) {
+    renderAdminPanel();
+  }
+}
+
+/* ════════════════════════════════════════════════════
+   STORE OPEN / CLOSED
+════════════════════════════════════════════════════ */
+function storeIsOpen() { return storeOpen; }
+
+async function setStore(open) {
+  storeOpen = open;
+  syncClosedBanner();
+  await withData(d => { d.storeOpen = open; return d; });
+}
+
+function syncClosedBanner() {
+  const el = document.getElementById('closedBanner');
+  if (!el) return;
+  if (storeOpen) el.classList.remove('show');
+  else el.classList.add('show');
+}
+
+function checkEntryGate() {
+  if (storeOpen && !currentUser) showSignIn(true);
+}
+
+/* ════════════════════════════════════════════════════
+   CUSTOMER ACCOUNTS
+════════════════════════════════════════════════════ */
+async function upsertCustomer(rec) {
+  const now = new Date().toISOString();
+  const idx = atCustomers.findIndex(c => c.email && c.email.toLowerCase() === rec.email.toLowerCase());
+  if (idx >= 0) {
+    atCustomers[idx] = { ...atCustomers[idx], ...rec, lastSeen: now };
+  } else {
+    atCustomers = [{ ...rec, registeredAt: now, lastSeen: now }, ...atCustomers];
+  }
+  refreshAdminIfOpen();
+  await withData(d => { d.customers = atCustomers; return d; });
+}
+
+/* ════════════════════════════════════════════════════
+   GOOGLE SIGN-IN
+════════════════════════════════════════════════════ */
+window.onGoogleLibraryLoad = function() {
+  if (!GOOGLE_CLIENT_ID.startsWith('YOUR_')) {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential,
+      auto_select: false, cancel_on_tap_outside: false
+    });
+  }
+};
+
+function handleGoogleCredential(response) {
+  try {
+    const payload = JSON.parse(atob(response.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    currentUser = { name: payload.name||'Customer', email: payload.email||'', picture: payload.picture||'' };
+    upsertCustomer({ name: currentUser.name, email: currentUser.email, picture: currentUser.picture });
+    afterSignIn();
+  } catch(e) { alert('Sign-in failed — please try again.'); }
+}
+
+/* ════════════════════════════════════════════════════
+   GATE OVERLAY
+════════════════════════════════════════════════════ */
+function showGateOverlay(content) {
+  document.getElementById('gateContent').innerHTML = content;
+  document.getElementById('gateOverlay').classList.add('show');
+}
+function hideGateOverlay() {
+  document.getElementById('gateOverlay').classList.remove('show');
+  document.getElementById('gateContent').innerHTML = '';
+}
+
+function showSignIn(required) {
+  if (!storeIsOpen()) {
+    showGateOverlay(`<div class="closed-box" onclick="event.stopPropagation()">
+      <span class="big-emoji">🔒</span>
+      <h2>We're Not Open Yet!</h2>
+      <p>Our stall isn't accepting orders right now, but we're opening very soon!<br><br>Come back shortly — something delicious is on the way 🥞✨</p>
+      <button class="closed-ok-btn" onclick="hideGateOverlay()">Got it! 👍</button>
+    </div>`);
+    document.getElementById('gateOverlay').onclick = null;
+    return;
+  }
+  const overlay = document.getElementById('gateOverlay');
+  overlay.onclick = required ? null : hideGateOverlay;
+  const useReal = !GOOGLE_CLIENT_ID.startsWith('YOUR_');
+  const btnArea = useReal
+    ? `<div class="g-btn-wrap" id="gBtnMount"></div>`
+    : `<div style="width:100%;">
+        <input class="signin-field" type="text" id="custName" placeholder="Your full name 😊" maxlength="40" autocomplete="name" onkeydown="if(event.key==='Enter')document.getElementById('custEmail').focus()"/>
+        <input class="signin-field" type="email" id="custEmail" placeholder="Email address 📧" maxlength="80" autocomplete="email" onkeydown="if(event.key==='Enter')completeSignIn()"/>
+        <button class="signin-submit" onclick="completeSignIn()">Let's Order! 🥞</button>
+        <div class="signin-err" id="custErr" style="display:none;"></div>
+       </div>`;
+  showGateOverlay(`<div class="signin-box" onclick="event.stopPropagation()">
+    <span class="signin-emoji">🥞</span>
+    <h2>Welcome to Maple &amp; Melt!</h2>
+    <p>${useReal ? 'Sign in with your Google account to place your order!' : 'Enter your name and email to get started!'}</p>
+    ${btnArea}
+  </div>`);
+  if (useReal) {
+    setTimeout(() => {
+      try { google.accounts.id.renderButton(document.getElementById('gBtnMount'), { theme:'outline', size:'large', shape:'pill', width:280 }); } catch(e) {}
+    }, 80);
+  }
+}
+
+function completeSignIn() {
+  const nameEl = document.getElementById('custName');
+  const emailEl = document.getElementById('custEmail');
+  const errEl  = document.getElementById('custErr');
+  if (!nameEl || !emailEl) return;
+  const name = nameEl.value.trim(), email = emailEl.value.trim();
+  if (!name) { errEl.textContent='Please enter your name! 😊'; errEl.style.display='block'; nameEl.focus(); return; }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent='Please enter a valid email! 📧'; errEl.style.display='block'; emailEl.focus(); return; }
+  currentUser = { name, email, picture: '' };
+  upsertCustomer({ name, email, picture: '' });
+  afterSignIn();
+}
+
+function afterSignIn() {
+  hideGateOverlay();
+  const nm = document.getElementById('userNameBar');
+  const av = document.getElementById('userAvatar');
+  const bar= document.getElementById('userBar');
+  nm.textContent = 'Hi, ' + currentUser.name.split(' ')[0] + '! 👋';
+  if (currentUser.picture) { av.src=currentUser.picture; av.style.display='block'; } else { av.style.display='none'; }
+  bar.classList.add('show');
+  refreshAdminIfOpen();
+  if (pendingKey) { const k=pendingKey; pendingKey=null; openMenuModal(k); }
+}
+
+function doSignOut() {
+  currentUser=null; cart=[]; renderCart();
+  document.getElementById('userBar').classList.remove('show');
+  try { google.accounts.id.disableAutoSelect(); } catch(e) {}
+}
+
+/* ════════════════════════════════════════════════════
+   MENU CARD TAP
+════════════════════════════════════════════════════ */
+function handleMenuTap(key) {
+  if (!storeIsOpen()) {
+    showGateOverlay(`<div class="closed-box" onclick="event.stopPropagation()">
+      <span class="big-emoji">🔒</span><h2>We're Not Open Yet!</h2>
+      <p>Our stall isn't accepting orders right now — come back soon! 🥞✨</p>
+      <button class="closed-ok-btn" onclick="hideGateOverlay()">Got it! 👍</button>
+    </div>`);
+    return;
+  }
+  if (!currentUser) { pendingKey=key; showSignIn(false); return; }
+  openMenuModal(key);
+}
+
+/* ════════════════════════════════════════════════════
+   MENU DATA
+════════════════════════════════════════════════════ */
+const MENU = {
+  pancakes: { emoji:'🥞', name:'Fluffy Pancakes', desc:'Golden, buttery stacks drizzled with real maple syrup',
+    sizes:[{label:'Small (3 pcs)',price:22},{label:'Medium (5 pcs)',price:30},{label:'Large (8 pcs)',price:40}],
+    toppings:['🍓 Strawberries','🍌 Banana','🫐 Blueberries','🍦 Whipped Cream','🍯 Extra Maple','🍫 Choc Drizzle'],
+    flavours:['Classic Butter','Cinnamon','Vanilla','Blueberry Burst'] },
+  hotchoc: { emoji:'🍫', name:'Hot Chocolate', desc:'Rich, velvety cocoa topped with fluffy marshmallows',
+    sizes:[{label:'Small',price:15},{label:'Medium',price:19},{label:'Large',price:23}],
+    toppings:['☁️ Marshmallows','🍦 Whipped Cream','🍫 Extra Choc','🌶️ Spicy Kick','🍬 Caramel'],
+    flavours:['Classic Dark','Milk Choc','White Choc','Hazelnut','Mint Choc','Cold Chocolate'] },
+  smoothie: { emoji:'🥤', name:'Fresh Smoothies', desc:'Blended with real fruits, packed with natural goodness',
+    sizes:[{label:'Small (300ml)',price:18},{label:'Medium (450ml)',price:23},{label:'Large (600ml)',price:28}],
+    toppings:['🌿 Chia Seeds','🍯 Honey','🥥 Coconut Flakes','🌱 Protein Boost','🧊 Extra Ice','🍦 Whipped Cream'],
+    flavours:['🥭 Mango','🍓 Strawberry','🍌 Banana','🫐 Mixed Berry','🍍 Tropical','🥝 Kiwi','🍑 Peach','🥭🍓 Mango & Strawberry'] },
+  drinks: { emoji:'🧃', name:'Special Drinks', desc:'Fresh juices, lemonades and icy slushies made to order!',
+    sizes:[{label:'Small',price:13},{label:'Medium',price:17},{label:'Large',price:21}],
+    toppings:['🧊 Extra Ice','🍋 Extra Lemon','🌿 Mint Leaves','🍬 Sugar Rim','🫧 Sparkling Water','🍯 Honey Drizzle'],
+    flavours:['🍊 Orange Juice','🍋 Classic Lemonade','🍋🌿 Mint Lemonade','🥭 Mango Slushie','🍓 Strawberry Slushie','🥭🍓 Mango & Strawberry Slushie','🍉 Watermelon Juice','🍹 Tropical Mix'] },
+  waffles: { emoji:'🧇', name:'Crispy Waffles', desc:'Golden, crispy waffles topped with syrup, cream & fruits',
+    sizes:[{label:'Single',price:25},{label:'Double',price:38},{label:'Family (4)',price:65}],
+    toppings:['🍓 Strawberries','🍌 Banana','🍨 Ice Cream','🍫 Nutella','🍯 Maple Syrup','🍦 Whipped Cream'],
+    flavours:['Classic Butter','Cinnamon Sugar','Choc Chip','Red Velvet','Vanilla Bean'] },
+  cookies: { emoji:'🍪', name:'Fresh Cookies', desc:'Warm, freshly baked cookies straight from the oven!',
+    sizes:[{label:'1 Cookie',price:8},{label:'3 Cookies',price:20},{label:'6 Cookies',price:35}],
+    toppings:['🍦 With Ice Cream','🍫 Choc Dip','🥛 With Milk','🍬 Sprinkles'],
+    flavours:['🍫 Choc Chip','🍫 Double Choc','🥜 Peanut Butter','🍬 Kinder'] }
+};
+
+/* ════════════════════════════════════════════════════
+   MENU MODAL
+════════════════════════════════════════════════════ */
+let modalItem=null, modalSize=0, modalToppings=[], modalFlavour=null;
+
+function openMenuModal(key) {
+  modalItem=MENU[key]; modalSize=0; modalToppings=[]; modalFlavour=null;
+  renderMenuModal();
+  document.getElementById('menuModalOverlay').style.display='block';
+  const mb=document.getElementById('menuModal');
+  mb.style.display='block';
+  setTimeout(()=>{ mb.style.transform='translate(-50%,-50%) scale(1)'; },10);
+}
+function closeMenuModal() {
+  const mb=document.getElementById('menuModal');
+  mb.style.transform='translate(-50%,-50%) scale(0.8)';
+  setTimeout(()=>{ mb.style.display='none'; document.getElementById('menuModalOverlay').style.display='none'; },250);
+}
+function renderMenuModal() {
+  const item=modalItem, total=item.sizes[modalSize].price+modalToppings.length*2;
+  document.getElementById('menuModalBody').innerHTML=`
+    <span class="modal-emoji">${item.emoji}</span>
+    <div class="modal-title">${h(item.name)}</div>
+    <div class="modal-desc">${h(item.desc)}</div>
+    <div class="option-group"><span class="option-label">📏 Size</span>
+      <div class="option-chips">${item.sizes.map((s,i)=>`<div class="chip${i===modalSize?' active':''}" onclick="setModalSize(${i})">${h(s.label)}<br><small>AED ${s.price}</small></div>`).join('')}</div>
+    </div>
+    <div class="option-group"><span class="option-label">🍓 Toppings <small style="color:#bbb">(+AED 2 each)</small></span>
+      <div class="option-chips">${item.toppings.map((t,i)=>`<div class="chip topping${modalToppings.includes(i)?' active':''}" onclick="toggleModalTopping(${i})">${h(t)}</div>`).join('')}</div>
+    </div>
+    <div class="option-group"><span class="option-label">✨ Flavour</span>
+      <div class="option-chips">${item.flavours.map((f,i)=>`<div class="chip flavour${modalFlavour===i?' active':''}" onclick="setModalFlavour(${i})">${h(f)}</div>`).join('')}</div>
+    </div>
+    <div class="modal-price">Total: AED ${total}</div>
+    <button class="order-btn" onclick="addToCart()">🛒 Add to Order!</button>`;
+}
+function setModalSize(i) { modalSize=i; renderMenuModal(); }
+function toggleModalTopping(i) { modalToppings=modalToppings.includes(i)?modalToppings.filter(x=>x!==i):[...modalToppings,i]; renderMenuModal(); }
+function setModalFlavour(i) { modalFlavour=(modalFlavour===i)?null:i; renderMenuModal(); }
+
+/* ════════════════════════════════════════════════════
+   NEW CUSTOMER DISCOUNT (10% off — first 10 days)
+════════════════════════════════════════════════════ */
+const DISCOUNT_DAYS=10, DISCOUNT_PERCENT=10;
+function getCustomerRegisteredAt() {
+  if (!currentUser) return null;
+  const c=atCustomers.find(c=>c.email&&c.email.toLowerCase()===currentUser.email.toLowerCase());
+  return c ? (c.registeredAt||null) : null;
+}
+function isNewCustomer() {
+  const reg=getCustomerRegisteredAt(); if (!reg) return false;
+  return (Date.now()-new Date(reg).getTime())/(1000*60*60*24)<=DISCOUNT_DAYS;
+}
+function applyDiscount(total) { return isNewCustomer()?Math.round(total*(1-DISCOUNT_PERCENT/100)):total; }
+
+/* ════════════════════════════════════════════════════
+   CART
+════════════════════════════════════════════════════ */
+function addToCart() {
+  const item=modalItem, sz=item.sizes[modalSize];
+  const price=sz.price+modalToppings.length*2;
+  const flavour=modalFlavour!==null?item.flavours[modalFlavour]:null;
+  const toppings=modalToppings.map(i=>item.toppings[i]);
+  const menuKey=Object.keys(MENU).find(k=>MENU[k].name===item.name)||'';
+  cart.push({id:Date.now(),menuKey,emoji:item.emoji,name:item.name,size:sz.label,flavour,toppings,price,qty:1});
+  renderCart(); closeMenuModal();
+  setTimeout(()=>{ launchConfetti(); openCart(); },300);
+}
+
+function renderCart() {
+  const badge=document.getElementById('cartBadge');
+  const itemsEl=document.getElementById('cartItems');
+  const footer=document.getElementById('cartFooter');
+  badge.textContent=cart.reduce((s,it)=>s+(it.qty||1),0);
+  if (!cart.length) {
+    itemsEl.innerHTML='<div class="cart-empty"><span>🥞</span>Nothing here yet!<br><small style="font-family:Nunito,sans-serif;font-size:.9rem;color:#ddd;">Tap a menu item to add to your order</small></div>';
+    footer.style.display='none'; return;
+  }
+  footer.style.display='block';
+  let grand=0;
+  itemsEl.innerHTML=cart.map(it=>{
+    const qty=it.qty||1; grand+=it.price*qty;
+    const fTag=it.flavour?`<span class="opt-tag flavour-tag">✨ ${h(it.flavour)}</span>`:'';
+    const tTags=it.toppings.length?it.toppings.map(t=>`<span class="opt-tag topping-tag">${h(t)}</span>`).join(''):'<span class="opt-tag" style="background:#f5f5f5;color:#bbb;">No toppings</span>';
+    return `<div class="cart-item">
+      <span class="cart-item-emoji">${it.emoji}</span>
+      <div class="cart-item-info">
+        <div class="cart-item-name">${h(it.name)}</div>
+        <div class="cart-item-options"><span class="opt-tag size-tag">📏 ${h(it.size)}</span>${fTag}${tTags}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
+        <span class="cart-item-price">AED ${it.price*qty}</span>
+        <div class="qty-ctrl">
+          <button class="qty-btn" onclick="changeQty(${it.id},-1)">−</button>
+          <span class="qty-num">${qty}</span>
+          <button class="qty-btn" onclick="changeQty(${it.id},1)">＋</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  const discEl=document.getElementById('cartDiscount');
+  if (isNewCustomer()) {
+    const discounted=applyDiscount(grand), saved=grand-discounted;
+    document.getElementById('cartTotal').textContent='AED '+discounted;
+    if (discEl) { discEl.style.display='flex'; discEl.innerHTML=`<span style="color:#4ECDC4;font-size:.85rem;">🎉 10% new customer discount: -AED ${saved}</span>`; }
+  } else {
+    document.getElementById('cartTotal').textContent='AED '+grand;
+    if (discEl) discEl.style.display='none';
+  }
+}
+
+function changeQty(id,delta) { cart=cart.map(i=>i.id===id?{...i,qty:(i.qty||1)+delta}:i).filter(i=>(i.qty||1)>0); renderCart(); }
+function removeFromCart(id) { cart=cart.filter(i=>i.id!==id); renderCart(); }
+function clearCart()  { if (confirm('Clear your entire order? 🗑️')) { cart=[]; renderCart(); } }
+function openCart()   { document.getElementById('cartPanel').classList.add('open'); document.getElementById('cartOverlay').classList.add('open'); }
+function closeCart()  { document.getElementById('cartPanel').classList.remove('open'); document.getElementById('cartOverlay').classList.remove('open'); }
+function toggleCart() { document.getElementById('cartPanel').classList.contains('open')?closeCart():openCart(); }
+
+async function doCheckout() {
+  if (!cart.length) return;
+  if (!currentUser)   { pendingKey=null; showSignIn(false); return; }
+  if (!storeIsOpen()) { alert('The store is currently closed. Please check back soon!'); return; }
+
+  const subtotal=cart.reduce((s,i)=>s+i.price*(i.qty||1),0);
+  const newCust=isNewCustomer();
+  const total=newCust?applyDiscount(subtotal):subtotal;
+  const discountAmt=subtotal-total;
+
+  const order={
+    id: Date.now(), timestamp: new Date().toISOString(),
+    user: { name:currentUser.name, email:currentUser.email, picture:currentUser.picture },
+    items: cart.flatMap(i=>Array(i.qty||1).fill({emoji:i.emoji,name:i.name,size:i.size,flavour:i.flavour,toppings:[...i.toppings],price:i.price})),
+    subtotal, discount:newCust?discountAmt:0,
+    discountNote:newCust?(DISCOUNT_PERCENT+'% new customer discount'):'', total
+  };
+
+  // Show in admin instantly
+  atOrders=[order,...atOrders];
+  refreshAdminIfOpen();
+
+  // Save to JSONBin
+  await withData(d=>{ d.orders=[order,...(d.orders||[])]; return d; });
+
+  launchConfetti();
+  const lineArr=cart.map(i=>{
+    const qty=i.qty||1;
+    const f=i.flavour?' | '+i.flavour:'';
+    const t=i.toppings.length?' | '+i.toppings.join(', '):'';
+    return i.emoji+' '+i.name+' x'+qty+' - '+i.size+f+t+' - AED '+(i.price*qty);
+  });
+  const discLine=newCust?('\n\n🎉 10% off: -AED '+discountAmt+'\n💰 Total: AED '+total):('\n\n💰 Total: AED '+total);
+  alert('🎉 Order Placed!\n\n'+lineArr.join('\n')+'\n\n──────────────'+discLine+'\n\n📍 Nad Al Hamar, Dubai\nThank you, '+currentUser.name.split(' ')[0]+'! 🥞💛');
+
+  cart=[]; renderCart(); closeCart();
+}
+
+/* ════════════════════════════════════════════════════
+   ADMIN GATE
+════════════════════════════════════════════════════ */
+function openAdminGate() {
+  if (adminAuthed) { renderAdminPanel(); return; }
+  document.getElementById('adminContent').innerHTML=`
+    <div class="admin-login-wrap"><div class="admin-login-box">
+      <div style="font-size:2.8rem;margin-bottom:10px;">🔐</div>
+      <h2>Admin Access</h2><p>Enter your admin password to continue</p>
+      <input class="admin-input" type="password" id="adminPwField" placeholder="Password…" onkeydown="if(event.key==='Enter')verifyAdminPw()"/>
+      <button class="admin-login-btn" onclick="verifyAdminPw()">🚀 Open Dashboard</button>
+      <div class="admin-error" id="adminErr">❌ Incorrect password. Try again.</div>
+      <br/><button class="admin-cancel-link" onclick="closeAdmin()">Cancel</button>
+    </div></div>`;
+  document.getElementById('adminOverlay').classList.add('show');
+  setTimeout(()=>{ const f=document.getElementById('adminPwField'); if(f) f.focus(); },120);
+}
+function verifyAdminPw() {
+  const f=document.getElementById('adminPwField'); if (!f) return;
+  if (f.value===ADMIN_PASSWORD) { adminAuthed=true; renderAdminPanel(); }
+  else { const e=document.getElementById('adminErr'); if(e) e.style.display='block'; f.value=''; f.focus(); }
+}
+
+/* ════════════════════════════════════════════════════
+   ADMIN DASHBOARD
+════════════════════════════════════════════════════ */
+function renderAdminPanel() {
+  const orders=atOrders, customers=atCustomers, comments=pageComments;
+  const revenue=orders.reduce((s,o)=>s+(Number(o.total)||0),0);
+  const itemCount=orders.reduce((s,o)=>s+((o.items&&o.items.length)||0),0);
+  const open=storeIsOpen();
+
+  const orderHTML=orders.length===0
+    ?'<div class="no-orders-msg">📭 No orders yet. Open the store to start accepting orders!</div>'
+    :orders.map(o=>{
+      const d=new Date(o.timestamp||Date.now());
+      const ts=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' · '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      const name=h(o.user?o.user.name:'Unknown'), email=h(o.user?o.user.email:'');
+      const pic=o.user&&o.user.picture?o.user.picture:'';
+      const picEl=pic?`<img class="order-pic" src="${h(pic)}" alt=""/>`:'<div class="order-pic-ph">👤</div>';
+      const itemRows=(o.items||[]).map(it=>{
+        const f=it.flavour?' · ✨ '+h(it.flavour):'';
+        const t=it.toppings&&it.toppings.length?' · '+it.toppings.map(x=>h(x)).join(', '):'';
+        return '<div class="order-item-row">'+it.emoji+' <strong style="color:white;">'+h(it.name)+'</strong> — '+h(it.size)+f+t+'<span class="order-item-price">AED '+it.price+'</span></div>';
+      }).join('');
+      return `<div class="order-card">
+        <div class="order-card-head">
+          <div class="order-who">${picEl}<div><div class="order-name">${name}</div><div class="order-email">${email}</div></div></div>
+          <div class="order-right">
+            <span class="order-total-pill">AED ${o.total||0}</span>
+            ${o.discount?'<div style="font-size:.75rem;color:#4ECDC4;margin-top:3px;">🎉 -AED '+o.discount+' discount</div>':''}
+            <div class="order-time">${ts}</div>
+          </div>
+        </div>
+        <div class="order-items-list">${itemRows}</div>
+      </div>`;
+    }).join('');
+
+  document.getElementById('adminContent').innerHTML=`
+    <div class="admin-panel-wrap"><div class="admin-panel">
+      <div class="admin-topbar">
+        <div class="admin-topbar-left">
+          <h1>🍳 Maple &amp; Melt — Dashboard</h1>
+          <p>Admin only · <span style="color:#4ECDC4;font-size:.75rem;">🟢 JSONBin live sync ON</span></p>
+        </div>
+        <button class="admin-close" onclick="closeAdmin()">✕</button>
+      </div>
+      <div class="admin-body">
+
+        <div class="admin-stats">
+          <div class="stat-card"><div class="stat-val">${orders.length}</div><div class="stat-label">Total Orders</div></div>
+          <div class="stat-card" style="border-color:var(--yellow);background:rgba(255,211,61,.08);">
+            <div class="stat-val" style="font-size:2.6rem;color:var(--yellow);">AED&nbsp;${revenue}</div>
+            <div class="stat-label" style="color:var(--yellow);font-weight:700;">💰 Total Money Earned</div>
+          </div>
+          <div class="stat-card"><div class="stat-val">${itemCount}</div><div class="stat-label">Items Sold</div></div>
+          <div class="stat-card"><div class="stat-val">${customers.length}</div><div class="stat-label">Registered Customers</div></div>
+          <div class="stat-card">
+            <div class="stat-val" style="color:${open?'#4ECDC4':'#FF6B9D'};font-size:1.6rem;">${open?'🟢 Open':'🔴 Closed'}</div>
+            <div class="stat-label">Store Status</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="admin-sh">🏪 Store Control</div>
+          <div class="store-ctrl">
+            <div class="store-ctrl-info">
+              <h3>${open?'✅ Store is OPEN — customers can place orders':'🔒 Store is CLOSED — ordering is blocked'}</h3>
+              <p>${open?'Tap "Close Store" to stop accepting orders.':'Tap "Open Store" to let customers order.'}</p>
+            </div>
+            <button class="toggle-store-btn ${open?'do-close':'do-open'}" onclick="adminFlipStore()">
+              ${open?'🔒 Close Store':'🟢 Open Store'}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div class="admin-sh">
+            <span>👥 Registered Customers (${customers.length})</span>
+            ${customers.length?'<button class="clear-orders-btn" onclick="adminClearCustomers()">🗑️ Delete All Customers</button>':''}
+          </div>
+          ${customers.length===0
+            ?'<div class="no-customers-msg">📭 No customers yet.</div>'
+            :`<div style="overflow-x:auto;border-radius:14px;border:1px solid rgba(255,255,255,.09);">
+                <table class="customers-table">
+                  <thead><tr><th></th><th>Name</th><th>Email</th><th>Status</th><th>Registered</th><th>Last Sign-in</th><th>Orders &amp; Spent</th></tr></thead>
+                  <tbody>${customers.map(c=>{
+                    const ini=(c.name||'?')[0].toUpperCase();
+                    const reg=c.registeredAt?new Date(c.registeredAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
+                    const ls=c.lastSeen?new Date(c.lastSeen).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+new Date(c.lastSeen).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'—';
+                    const days=c.registeredAt?(Date.now()-new Date(c.registeredAt).getTime())/(1000*60*60*24):999;
+                    const dl=Math.max(0,Math.ceil(10-days));
+                    const badge=dl>0?'<span style="background:rgba(78,205,196,.2);color:#4ECDC4;border:1px solid #4ECDC4;border-radius:20px;padding:2px 10px;font-size:.78rem;white-space:nowrap;">🆕 New · '+dl+'d left</span>':'<span style="color:rgba(255,255,255,.3);font-size:.8rem;">Regular</span>';
+                    const oc=orders.filter(o=>o.user&&o.user.email&&o.user.email.toLowerCase()===c.email.toLowerCase()).length;
+                    const ts2=orders.filter(o=>o.user&&o.user.email&&o.user.email.toLowerCase()===c.email.toLowerCase()).reduce((s,o)=>s+(Number(o.total)||0),0);
+                    const picEl=c.picture?'<img src="'+h(c.picture)+'" style="width:30px;height:30px;border-radius:50%;border:2px solid var(--yellow);vertical-align:middle;" alt=""/>':'<span class="cust-initials">'+h(ini)+'</span>';
+                    return '<tr><td>'+picEl+'</td><td style="color:white;font-weight:700;">'+h(c.name||'—')+'</td><td style="font-size:.82rem;">'+h(c.email||'—')+'</td><td>'+badge+'</td><td>'+reg+'</td><td style="font-size:.82rem;">'+ls+'</td><td>'+(oc>0?'<span style="color:var(--yellow);font-family:\'Fredoka One\',cursive;">'+oc+' order'+(oc!==1?'s':'')+' · AED '+ts2+'</span>':'<span style="color:rgba(255,255,255,.25);">None yet</span>')+'</td></tr>';
+                  }).join('')}</tbody>
+                </table>
+              </div>`}
+        </div>
+
+        <div>
+          <div class="admin-sh">
+            <span>📋 All Orders (${orders.length})</span>
+            ${orders.length?'<button class="clear-orders-btn" onclick="adminClearOrders()">🗑️ Delete All Orders</button>':''}
+          </div>
+          <div class="orders-list">${orderHTML}</div>
+        </div>
+
+        <div>
+          <div class="admin-sh">
+            <span>💬 Comments (${comments.length})</span>
+            ${comments.length?'<button class="clear-orders-btn" onclick="adminClearComments()">🗑️ Delete All Comments</button>':''}
+          </div>
+          ${comments.length===0
+            ?'<div class="no-orders-msg">📭 No comments yet.</div>'
+            :`<div style="display:flex;flex-direction:column;gap:12px;">${comments.map(c=>`
+                <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:14px 18px;">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                    <div style="width:32px;height:32px;border-radius:50%;background:${h(c.color||'#FFD93D')};display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;font-size:.9rem;color:white;flex-shrink:0;">${h(c.initials||'?')}</div>
+                    <div><div style="font-family:'Fredoka One',cursive;color:white;font-size:.95rem;">${h(c.name||'—')}${c.location?' — '+h(c.location):''}</div>
+                    <div style="font-size:.75rem;color:rgba(255,255,255,.35);">${h(c.date||'')}</div></div>
+                    <span style="margin-left:auto;font-size:1.3rem;">${h(c.emoji||'😊')}</span>
+                  </div>
+                  <p style="font-size:.88rem;color:rgba(255,255,255,.7);line-height:1.5;">${h(c.text||'')}</p>
+                </div>`).join('')}</div>`}
+        </div>
+
+      </div>
+    </div></div>`;
+  document.getElementById('adminOverlay').classList.add('show');
+}
+
+async function adminFlipStore() {
+  await setStore(!storeIsOpen());
+  renderAdminPanel();
+}
+async function adminClearOrders() {
+  if (confirm('Permanently delete ALL orders? This cannot be undone.')) {
+    atOrders=[];
+    await withData(d=>{ d.orders=[]; return d; });
+    renderAdminPanel();
+  }
+}
+async function adminClearCustomers() {
+  if (confirm('Permanently delete ALL customers? This cannot be undone.')) {
+    atCustomers=[];
+    await withData(d=>{ d.customers=[]; return d; });
+    renderAdminPanel();
+  }
+}
+async function adminClearComments() {
+  if (confirm('Permanently delete ALL comments? This cannot be undone.')) {
+    pageComments=[];
+    await withData(d=>{ d.comments=[]; return d; });
+    renderComments([]);
+    renderAdminPanel();
+  }
+}
+function closeAdmin() { document.getElementById('adminOverlay').classList.remove('show'); }
+
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.shiftKey && e.key==='A') { e.preventDefault(); openAdminGate(); }
+});
+
+/* ════════════════════════════════════════════════════
+   COMMENTS
+════════════════════════════════════════════════════ */
+const AVATAR_COLORS=['#FFD93D','#4ECDC4','#FF6B9D','#C77DFF','#7BC67E','#FF6B35'];
+let pickedEmoji='😍';
+
+function commentCard(c) {
+  return `<div class="comment-card">
+    <div class="comment-header">
+      <div class="comment-avatar" style="background:${h(c.color)};">${h(c.initials)}</div>
+      <div style="flex:1;min-width:0;">
+        <span class="comment-name">${h(c.name)}${c.location?' — '+h(c.location):''}</span>
+        <div style="font-size:.78rem;color:#bbb;font-family:'Nunito',sans-serif;margin-top:1px;">${h(c.date)}</div>
+      </div>
+      <span class="comment-emoji-badge">${h(c.emoji)}</span>
+    </div>
+    <p class="comment-text">${h(c.text)}</p>
+  </div>`;
+}
+
+function renderComments(arr) {
+  const list=document.getElementById('commentsList');
+  if (!list) return;
+  if (!arr||!arr.length) {
+    list.innerHTML='<div style="text-align:center;color:#bbb;font-family:Nunito,sans-serif;padding:30px;font-size:1.1rem;">No comments yet — be the first! 🥞</div>';
+    return;
+  }
+  list.innerHTML=arr.map(commentCard).join('');
+}
+
+document.querySelectorAll('.emoji-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.emoji-btn').forEach(b=>b.classList.remove('selected'));
+    btn.classList.add('selected'); pickedEmoji=btn.dataset.emoji;
+  });
+});
+
+async function submitComment() {
+  const name=document.getElementById('nameInput').value.trim();
+  const loc =document.getElementById('locationInput').value.trim();
+  const text=document.getElementById('commentInput').value.trim();
+  if (!name)           { alert('Please enter your name! 😊'); return; }
+  if (text.length < 3) { alert('Please write a comment (at least 3 characters)! 😊'); return; }
+  const color=AVATAR_COLORS[Math.floor(Math.random()*AVATAR_COLORS.length)];
+  const date=new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+  const comment={name,location:loc,text,emoji:pickedEmoji,color,initials:name[0].toUpperCase(),date,timestamp:Date.now()};
+
+  // Show instantly on page and in admin
+  pageComments=[comment,...pageComments];
+  renderComments(pageComments);
+  refreshAdminIfOpen();
+
+  // Save to JSONBin
+  await withData(d=>{ d.comments=[comment,...(d.comments||[])]; return d; });
+
+  document.getElementById('nameInput').value='';
+  document.getElementById('locationInput').value='';
+  document.getElementById('commentInput').value='';
+  document.querySelectorAll('.emoji-btn').forEach(b=>b.classList.remove('selected'));
+  document.querySelector('.emoji-btn[data-emoji="😍"]').classList.add('selected');
+  pickedEmoji='😍';
+  launchConfetti();
+  setTimeout(()=>{ document.getElementById('commentsList').scrollIntoView({behavior:'smooth',block:'start'}); },300);
+}
+
+/* ════════════════════════════════════════════════════
+   CONFETTI
+════════════════════════════════════════════════════ */
+function launchConfetti() {
+  const el=document.getElementById('confetti');
+  el.style.display='block'; el.innerHTML='';
+  const cols=['#FFD93D','#FF6B35','#FF6B9D','#C77DFF','#4ECDC4','#7BC67E'];
+  for (let i=0;i<60;i++) {
+    const p=document.createElement('div'); p.className='confetti-piece';
+    p.style.left=Math.random()*100+'vw'; p.style.top='-20px';
+    p.style.background=cols[Math.floor(Math.random()*cols.length)];
+    p.style.animationDelay=Math.random()*0.6+'s';
+    p.style.transform='rotate('+Math.random()*360+'deg)';
+    el.appendChild(p);
+  }
+  setTimeout(()=>{ el.style.display='none'; },2200);
+}
+
+/* ════════════════════════════════════════════════════
+   SCROLL REVEAL
+════════════════════════════════════════════════════ */
+(function(){
+  const obs=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('visible'); });
+  },{threshold:0.1});
+  document.querySelectorAll('.reveal').forEach(r=>obs.observe(r));
+})();
+
+/* ════════════════════════════════════════════════════
+   ROTATING SLOGANS
+════════════════════════════════════════════════════ */
+(function(){
+  const slogans=['✨ Drizzled with love, poured with passion ✨','✨ Melt into every sip and bite ✨','✨ Where warmth meets flavour ✨'];
+  let idx=0;
+  const el=document.getElementById('tagline');
+  setInterval(()=>{
+    el.classList.add('fade');
+    setTimeout(()=>{ idx=(idx+1)%slogans.length; el.textContent=slogans[idx]; el.classList.remove('fade'); },500);
+  },3000);
+})();
+
+/* ════════════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════════════ */
+syncClosedBanner();
+renderCart();
+renderComments([]);
+
+// Init JSONBin then start polling
+(async function(){
+  const ok = await jbInit();
+  if (ok) {
+    startPolling();
+  } else {
+    document.getElementById('closedBanner').textContent = '⚠️ Could not connect to database. Try refreshing.';
+    document.getElementById('closedBanner').classList.add('show');
+  }
+})();
+</script>
+</body>
+</html>
