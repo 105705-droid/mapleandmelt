@@ -630,23 +630,20 @@ async function jbRead() {
 }
 
 /* Write the full data object to the bin */
-let _jbWriting = false;  // lock to prevent poll overwriting a write
-let _jbSkipNextPoll = false;
+let _lastWriteTime = 0;  // timestamp of last write — polls pause for 15s after any write
 
 async function jbWrite(data) {
   const id = JB_BIN_ID || localStorage.getItem(JB_ID_KEY);
   if (!id) return false;
-  _jbWriting = true;
-  _jbSkipNextPoll = true;
+  _lastWriteTime = Date.now();  // record write time BEFORE fetch
   try {
     const r = await fetch(`${JB_BASE}/${id}`, {
       method:  'PUT',
       headers: JB_HEADERS,
       body:    JSON.stringify(data)
     });
-    _jbWriting = false;
     return r.ok;
-  } catch(e) { _jbWriting = false; return false; }
+  } catch(e) { return false; }
 }
 
 /* Create a new bin on first run */
@@ -753,11 +750,8 @@ function h(s) {
    LOAD & SYNC
 ════════════════════════════════════════════════════ */
 async function loadData() {
-  // Skip this poll if we just wrote data (prevents overwriting our own changes)
-  if (_jbWriting || _jbSkipNextPoll) {
-    _jbSkipNextPoll = false;
-    return;
-  }
+  // Skip poll for 15 seconds after any write — prevents overwriting our own changes
+  if (Date.now() - _lastWriteTime < 15000) return;
   const data = await jbRead();
   if (!data) return;
 
@@ -787,12 +781,16 @@ function startPolling() {
 /* ════════════════════════════════════════════════════
    HELPERS — read/modify/write pattern
 ════════════════════════════════════════════════════ */
+/* Apply fn to current local state and write — no read needed */
 async function withData(fn) {
-  // Read latest, apply fn, write back
-  let data = await jbRead();
-  if (!data) data = emptyData();
-  const updated = fn(data);
-  await jbWrite(updated || data);
+  const data = {
+    storeOpen:  storeOpen,
+    orders:     atOrders,
+    customers:  atCustomers,
+    comments:   pageComments
+  };
+  fn(data);
+  await jbWrite(data);
 }
 
 function refreshAdminIfOpen() {
