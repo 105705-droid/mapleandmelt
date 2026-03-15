@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+  <meta http-equiv="Pragma" content="no-cache"/>
+  <meta http-equiv="Expires" content="0"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Maple &amp; Melt 🥞</title>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"/>
@@ -387,6 +390,7 @@
 <div class="closed-banner" id="closedBanner">
   🔒 We're not open for orders yet — but we're coming soon! Follow us to stay updated 🥞✨
 </div>
+<div id="syncBanner" style="display:none;background:#4ECDC4;color:white;text-align:center;padding:6px;font-family:Nunito,sans-serif;font-size:.85rem;position:sticky;top:0;z-index:601;"></div>
 
 <!-- USER BAR -->
 <div class="user-bar" id="userBar">
@@ -657,11 +661,19 @@ async function jbCreate() {
 
 /* Initialise — just verify the bin is reachable */
 async function jbInit() {
+  // Just verify we can reach the bin — NEVER overwrite existing data
   const data = await jbRead();
-  if (!data) {
-    // Bin empty or first run — create initial data
-    await jbWrite(emptyData());
+  if (data) {
+    // Pre-load state so page is ready immediately
+    storeOpen    = data.storeOpen === true;
+    atOrders     = Array.isArray(data.orders)    ? data.orders    : [];
+    atCustomers  = Array.isArray(data.customers) ? data.customers : [];
+    pageComments = Array.isArray(data.comments)  ? data.comments  : [];
+    syncClosedBanner();
+    renderComments(pageComments);
+    checkEntryGate();
   }
+  // If data is null (first ever run), the bin is empty — that's fine, don't write anything
   return true;
 }
 
@@ -702,7 +714,15 @@ async function loadData() {
   // Skip poll for 15 seconds after any write — prevents overwriting our own changes
   if (Date.now() - _lastWriteTime < 15000) return;
   const data = await jbRead();
-  if (!data) return;
+  if (!data) {
+    // Show subtle warning if can't reach database
+    const sb = document.getElementById('syncBanner');
+    if (sb) { sb.style.display='block'; sb.textContent='⚠️ Connecting to database...'; }
+    return;
+  }
+  // Connected — hide warning
+  const sb = document.getElementById('syncBanner');
+  if (sb) sb.style.display='none';
 
   const wasOpen = storeOpen;
   storeOpen    = data.storeOpen === true;
